@@ -18,7 +18,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script type="module" id="fb-init">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -35,7 +35,7 @@
   const db = getFirestore(app);
   const provider = new GoogleAuthProvider();
 
-  window._fb = { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot };
+  window._fb = { auth, db, provider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot };
 </script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -139,7 +139,8 @@ function App() {
   const saveTimer = useRef(null);
 
   useEffect(() => {
-    const { auth, onAuthStateChanged } = window._fb;
+    const { auth, onAuthStateChanged, getRedirectResult } = window._fb;
+    getRedirectResult(auth).catch(() => {});
     return onAuthStateChanged(auth, async u => {
       setUser(u);
       if (u) {
@@ -151,7 +152,7 @@ function App() {
     });
   }, []);
 
-  function signIn() { const { auth, provider, signInWithPopup } = window._fb; signInWithPopup(auth, provider); }
+  function signIn() { const { auth, provider, signInWithRedirect } = window._fb; signInWithRedirect(auth, provider); }
   function signOutUser() { const { auth, signOut } = window._fb; signOut(auth); setLearned({}); setJournal([]); }
 
   function toggleAmud(tractate, daf, amud) {

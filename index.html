@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="מעקב ש״ס">
+<meta name="theme-color" content="#1a2d6e">
+<title>מעקב ש"ס · עמיחי צדוק</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Heebo', sans-serif; background: #f2f5fc; }
+.amud-cell { width:44px; height:40px; border-radius:7px; border:1.5px solid #d8e0f0; background:#fff; display:flex; align-items:center; justify-content:center; flex-direction:column; cursor:pointer; transition:all 0.12s; user-select:none; position:relative; gap:1px; box-shadow:0 1px 3px rgba(30,45,90,0.06); }
+.amud-cell:hover { border-color:#4a67c8; background:#eef1ff; transform:scale(1.08); z-index:2; }
+.amud-cell.learned { background:#dde6ff; border-color:#4a67c8; box-shadow:0 1px 5px rgba(74,103,200,0.18); }
+.amud-cell.flash { transform:scale(1.22); background:#b8caff; }
+.daf-num { font-size:0.75rem; font-weight:700; color:#1e2d5a; line-height:1; font-family:'Frank Ruhl Libre',serif; }
+.amud-letter { font-size:0.55rem; color:#8899bb; line-height:1; }
+.amud-cell.learned .daf-num { color:#2e4080; }
+.amud-cell.learned .amud-letter { color:#4a67c8; }
+.thdr:hover { background:#f5f7ff; }
+input:focus, textarea:focus { outline:none; }
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-thumb { background:#b0bcdc; border-radius:3px; }
+.journal-entry { background:#fff; border:1.5px solid #d8e0f0; border-radius:10px; padding:1rem; margin-bottom:0.7rem; }
+.journal-entry:hover .entry-actions { opacity:1; }
+.entry-actions { opacity:0; transition:opacity 0.15s; display:flex; gap:0.4rem; }
+.entry-btn { background:none; border:none; cursor:pointer; font-size:0.8rem; padding:0.2rem 0.4rem; border-radius:4px; color:#8899bb; transition:all 0.12s; }
+.entry-btn:hover { background:#eef1ff; color:#3a4f7a; }
+.entry-btn.del:hover { background:#fff0f0; color:#8b2020; }
+.mbtn { padding:0.28rem 0.65rem; border-radius:6px; cursor:pointer; font-family:'Heebo',sans-serif; font-size:0.72rem; font-weight:500; transition:all 0.15s; border: none; }
+.tab-btn { padding:0.5rem 1.1rem; border:none; background:transparent; cursor:pointer; font-family:'Heebo',sans-serif; font-size:0.88rem; font-weight:500; border-bottom:2px solid transparent; transition:all 0.15s; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+const SHAS = [
+  { seder: 'סדר זרעים', tractates: [{ name: 'ברכות', dafim: 64 }]},
+  { seder: 'סדר מועד', tractates: [
+    { name: 'שבת', dafim: 157 }, { name: 'עירובין', dafim: 105 },
+    { name: 'פסחים', dafim: 121 }, { name: 'שקלים', dafim: 22 },
+    { name: 'יומא', dafim: 88 }, { name: 'סוכה', dafim: 56 },
+    { name: 'ביצה', dafim: 40 }, { name: 'ראש השנה', dafim: 35 },
+    { name: 'תענית', dafim: 31 }, { name: 'מגילה', dafim: 32 },
+    { name: 'מועד קטן', dafim: 29 }, { name: 'חגיגה', dafim: 27 },
+  ]},
+  { seder: 'סדר נשים', tractates: [
+    { name: 'יבמות', dafim: 122 }, { name: 'כתובות', dafim: 112 },
+    { name: 'נדרים', dafim: 91 }, { name: 'נזיר', dafim: 66 },
+    { name: 'סוטה', dafim: 49 }, { name: 'גיטין', dafim: 90 },
+    { name: 'קידושין', dafim: 82 },
+  ]},
+  { seder: 'סדר נזיקין', tractates: [
+    { name: 'בבא קמא', dafim: 119 }, { name: 'בבא מציעא', dafim: 119 },
+    { name: 'בבא בתרא', dafim: 176 }, { name: 'סנהדרין', dafim: 113 },
+    { name: 'מכות', dafim: 24 }, { name: 'שבועות', dafim: 49 },
+    { name: 'עבודה זרה', dafim: 76 }, { name: 'הוריות', dafim: 14 },
+  ]},
+  { seder: 'סדר קדשים', tractates: [
+    { name: 'זבחים', dafim: 120 }, { name: 'מנחות', dafim: 110 },
+    { name: 'חולין', dafim: 142 }, { name: 'בכורות', dafim: 61 },
+    { name: 'ערכין', dafim: 34 }, { name: 'תמורה', dafim: 34 },
+    { name: 'כריתות', dafim: 28 }, { name: 'מעילה', dafim: 22 },
+    { name: 'תמיד', dafim: 10 },
+  ]},
+  { seder: 'סדר טהרות', tractates: [{ name: 'נידה', dafim: 73 }]},
+];
+
+const HEB = ['','א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב','יג','יד','טו','טז','יז','יח','יט','כ','כא','כב','כג','כד','כה','כו','כז','כח','כט','ל','לא','לב','לג','לד','לה','לו','לז','לח','לט','מ','מא','מב','מג','מד','מה','מו','מז','מח','מט','נ','נא','נב','נג','נד','נה','נו','נז','נח','נט','ס','סא','סב','סג','סד','סה','סו','סז','סח','סט','ע','עא','עב','עג','עד','עה','עו','עז','עח','עט','פ','פא','פב','פג','פד','פה','פו','פז','פח','פט','צ','צא','צב','צג','צד','צה','צו','צז','צח','צט','ק','קא','קב','קג','קד','קה','קו','קז','קח','קט','קי','קיא','קיב','קיג','קיד','קטו','קטז','קיז','קיח','קיט','קכ','קכא','קכב','קכג','קכד','קכה','קכו','קכז','קכח','קכט','קל','קלא','קלב','קלג','קלד','קלה','קלו','קלז','קלח','קלט','קמ','קמא','קמב','קמג','קמד','קמה','קמו','קמז','קמח','קמט','קנ','קנא','קנב','קנג','קנד','קנה','קנו','קנז','קנח','קנט','קס','קסא','קסב','קסג','קסד','קסה','קסו','קסז','קסח','קסט','קע','קעא','קעב','קעג','קעד','קעה','קעו'];
+
+const TOTAL_AMUDIM = SHAS.reduce((s, sed) => s + sed.tractates.reduce((ss, t) => ss + t.dafim * 2, 0), 0);
+const QUOTE = 'כִּי עַל־יְדֵי רִבּוּי הַלִּמּוּד שֶׁיִּלְמַד בִּמְהִירוּת וְיִזְכֶּה לִלְמֹד הַרְבֵּה, עַל־יְדֵי־זֶה יִזְכֶּה לַעֲבֹר כַּמָּה פְּעָמִים אֵלּוּ הַסְּפָרִים שֶׁלּוֹמֵד, לְגָמְרָם וְלַחֲזֹר לְהַתְחִיל וּלְגָמְרָם פַּעַם אַחַר פַּעַם. וְעַל־יְדֵי־זֶה מִמֵּילָא יָבִין בַּפַּעַם הַשֵּׁנִי וְהַשְּׁלִישִׁי כָּל מַה שֶּׁלֹּא הָיָה מֵבִין בִּתְחִלָּה, כָּל מַה שֶּׁאֶפְשָׁר לְהָבִין וְלַעֲמֹד עַל דִּבְרֵיהֶם.';
+
+function amudKey(t, d, a) { return t + '||' + d + '||' + a; }
+function today() { return new Date().toLocaleDateString('he-IL', { day:'numeric', month:'numeric', year:'numeric' }); }
+
+function load(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch(e) { return null; } }
+function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {} }
+
+function App() {
+  const [learned, setLearned] = useState(() => load('shas-learned') || {});
+  const [journal, setJournal] = useState(() => load('shas-journal') || []);
+  const [openCards, setOpenCards] = useState({});
+  const [search, setSearch] = useState('');
+  const [flash, setFlash] = useState(null);
+  const [tab, setTab] = useState('shas');
+  const [newEntry, setNewEntry] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState('');
+  const [quoteOpen, setQuoteOpen] = useState(false);
+
+  function toggleAmud(tractate, daf, amud) {
+    const k = amudKey(tractate, daf, amud);
+    const nl = { ...learned };
+    if (nl[k]) { delete nl[k]; } else { nl[k] = true; setFlash(k); setTimeout(() => setFlash(null), 350); }
+    setLearned(nl); save('shas-learned', nl);
+  }
+
+  function markAll(tractate, dafim) {
+    const nl = { ...learned };
+    for (let d = 2; d <= dafim + 1; d++) { nl[amudKey(tractate,d,'א')] = true; nl[amudKey(tractate,d,'ב')] = true; }
+    setLearned(nl); save('shas-learned', nl);
+  }
+
+  function unmarkAll(tractate, dafim) {
+    const nl = { ...learned };
+    for (let d = 2; d <= dafim + 1; d++) { delete nl[amudKey(tractate,d,'א')]; delete nl[amudKey(tractate,d,'ב')]; }
+    setLearned(nl); save('shas-learned', nl);
+  }
+
+  function countT(name, dafim) {
+    let c = 0;
+    for (let d = 2; d <= dafim + 1; d++) {
+      if (learned[amudKey(name,d,'א')]) c++;
+      if (learned[amudKey(name,d,'ב')]) c++;
+    }
+    return c;
+  }
+
+  function addEntry() {
+    if (!newEntry.trim()) return;
+    const nj = [{ id: Date.now(), date: today(), text: newEntry.trim() }, ...journal];
+    setJournal(nj); save('shas-journal', nj); setNewEntry('');
+  }
+
+  function deleteEntry(id) { const nj = journal.filter(e => e.id !== id); setJournal(nj); save('shas-journal', nj); }
+
+  function saveEdit(id) {
+    const nj = journal.map(e => e.id === id ? { ...e, text: editText } : e);
+    setJournal(nj); save('shas-journal', nj); setEditingId(null);
+  }
+
+  const totalLearned = Object.keys(learned).length;
+  const pct = Math.round((totalLearned / TOTAL_AMUDIM) * 100);
+  const remaining = TOTAL_AMUDIM - totalLearned;
+  const perWeek = remaining > 0 ? (7 / (6 * 365 / remaining)).toFixed(1) : '0';
+  const doneMasachtot = SHAS.reduce((s, sed) => s + sed.tractates.filter(t => countT(t.name, t.dafim) === t.dafim * 2).length, 0);
+
+  return (
+    <div dir="rtl" style={{ fontFamily:"'Heebo',sans-serif", background:'#f2f5fc', minHeight:'100vh', color:'#1a2340' }}>
+
+      {/* HEADER */}
+      <div style={{ background:'linear-gradient(135deg,#1a2d6e 0%,#2a40a0 100%)', boxShadow:'0 3px 20px rgba(20,40,100,0.3)', position:'sticky', top:0, zIndex:100 }}>
+        <div style={{ padding:'0.9rem 1.2rem 0.5rem', maxWidth:1080, margin:'0 auto', display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:'0.6rem' }}>
+          <div>
+            <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:900, color:'#e8f0ff', lineHeight:1.15 }}>מעקב ש"ס · עמיחי צדוק</div>
+            <div style={{ fontSize:'0.72rem', color:'#e8c040', fontWeight:600, marginTop:'0.2rem' }}>בעזרת ה׳ — תתחזק, אתה תצליח ✨</div>
+          </div>
+          <div style={{ display:'flex', gap:'1.2rem', alignItems:'center', flexWrap:'wrap' }}>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.4rem', fontWeight:700, color:'#e8d870', lineHeight:1 }}>{totalLearned.toLocaleString()}</div>
+              <div style={{ fontSize:'0.6rem', color:'#7a90cc' }}>עמודים</div>
+            </div>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.4rem', fontWeight:700, color:'#e8d870', lineHeight:1 }}>{doneMasachtot}</div>
+              <div style={{ fontSize:'0.6rem', color:'#7a90cc' }}>מסכתות</div>
+            </div>
+            <div style={{ width:140 }}>
+              <div style={{ background:'rgba(255,255,255,0.12)', borderRadius:99, height:7, overflow:'hidden', marginBottom:'0.25rem' }}>
+                <div style={{ height:'100%', width:pct+'%', background:'linear-gradient(90deg,#c8a010,#e8d870)', borderRadius:99, transition:'width 0.5s' }} />
+              </div>
+              <div style={{ fontSize:'0.66rem', color:'#7a90cc', display:'flex', justifyContent:'space-between' }}>
+                <span style={{ color:'#e8d870', fontWeight:700, fontSize:'0.78rem' }}>{pct}%</span>
+                <span>מכל הש"ס</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quote */}
+        <div onClick={() => setQuoteOpen(q => !q)} style={{ background:'rgba(0,0,0,0.18)', borderTop:'1px solid rgba(255,255,255,0.08)', padding:'0.5rem 1.2rem', cursor:'pointer' }}>
+          <div style={{ maxWidth:1080, margin:'0 auto', display:'flex', alignItems:'flex-start', gap:'0.8rem', justifyContent:'space-between' }}>
+            <div style={{ fontFamily:"'Frank Ruhl Libre',serif", color:'#c8d8ff', fontSize:'0.8rem', lineHeight:1.6, flex:1, overflow:'hidden' }}>
+              {quoteOpen
+                ? <span>״{QUOTE}״<br/><span style={{ fontSize:'0.68rem', color:'#e8c040', fontFamily:"'Heebo',sans-serif" }}>— שיחות הר"ן, רבי נחמן מברסלב</span></span>
+                : <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>״{QUOTE}״</span>
+              }
+            </div>
+            <span style={{ fontSize:'0.65rem', color:'#e8c040', fontFamily:"'Heebo',sans-serif", fontWeight:600, whiteSpace:'nowrap', paddingTop:'0.15rem' }}>{quoteOpen ? '▲' : '▼ הרחב'}</span>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display:'flex', maxWidth:1080, margin:'0 auto', padding:'0 1.2rem', borderBottom:'1px solid rgba(255,255,255,0.08)' }}>
+          {[['shas','📖 מעקב למידה'],['journal','📝 יומן']].map(([key, label]) => (
+            <button key={key} className="tab-btn" onClick={() => setTab(key)}
+              style={{ color: tab===key ? '#9ab8ff' : '#5a70aa', borderBottomColor: tab===key ? '#9ab8ff' : 'transparent', fontWeight: tab===key ? 700 : 400 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* BODY */}
+      <div style={{ maxWidth:1080, margin:'0 auto', padding:'1.2rem 1rem' }}>
+
+        {tab === 'shas' && <>
+          <div style={{ background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:12, padding:'0.8rem 1.2rem', marginBottom:'1.2rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.5rem', boxShadow:'0 1px 6px rgba(30,45,90,0.06)' }}>
+            <div style={{ fontSize:'0.86rem', color:'#3a4f7a' }}>🎯 יעד: לסיים עד גיל 50 · <span style={{ color:'#2a40a0', fontWeight:700 }}>{remaining.toLocaleString()}</span> עמודים נותרו</div>
+            <div style={{ fontSize:'0.82rem', color:'#3a4f7a' }}>קצב נדרש: <span style={{ color:'#1a7a50', fontWeight:700 }}>{perWeek} עמודים בשבוע</span></div>
+          </div>
+
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍  חפש מסכת..."
+            style={{ width:'100%', background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:10, padding:'0.65rem 1rem', color:'#1a2340', fontFamily:"'Heebo',sans-serif", fontSize:'0.92rem', marginBottom:'1.2rem', direction:'rtl', boxShadow:'0 1px 4px rgba(30,45,90,0.05)' }}
+          />
+
+          {SHAS.map(sed => {
+            const filtered = sed.tractates.filter(t => !search || t.name.includes(search));
+            if (!filtered.length) return null;
+            const sL = filtered.reduce((s,t) => s + countT(t.name, t.dafim), 0);
+            const sT = filtered.reduce((s,t) => s + t.dafim*2, 0);
+            return (
+              <div key={sed.seder} style={{ marginBottom:'2rem' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'0.8rem', marginBottom:'0.9rem', paddingBottom:'0.45rem', borderBottom:'2px solid #d8e0f0' }}>
+                  <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'0.95rem', fontWeight:700, color:'#2e4080' }}>{sed.seder}</span>
+                  <span style={{ fontSize:'0.68rem', color:'#7a8aaa', background:'#eef1ff', padding:'0.1rem 0.5rem', borderRadius:20 }}>{sL}/{sT}</span>
+                </div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:'0.8rem' }}>
+                  {filtered.map(t => {
+                    const cnt = countT(t.name, t.dafim);
+                    const totalAm = t.dafim * 2;
+                    const tPct = Math.round((cnt / totalAm) * 100);
+                    const isComplete = cnt === totalAm;
+                    const isOpen = openCards[t.name];
+                    return (
+                      <div key={t.name} style={{ background:'#fff', border:'1.5px solid ' + (isComplete ? '#4a67c8' : '#d8e0f0'), borderRadius:12, overflow:'hidden', boxShadow:'0 2px 8px rgba(30,45,90,0.06)' }}>
+                        <div className="thdr" onClick={() => setOpenCards(o => ({ ...o, [t.name]: !o[t.name] }))}
+                          style={{ padding:'0.8rem 1rem 0.65rem', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', userSelect:'none' }}>
+                          <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.05rem', fontWeight:700, color: isComplete ? '#4a67c8' : '#1a2340' }}>{t.name}</span>
+                          <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                            {isComplete && <span style={{ background:'#eef1ff', color:'#4a67c8', border:'1px solid #4a67c8', fontSize:'0.58rem', fontWeight:700, padding:'0.1rem 0.35rem', borderRadius:5 }}>✓ הושלם</span>}
+                            <span style={{ fontSize:'0.72rem', color:'#7a8aaa' }}>{cnt}/{totalAm}</span>
+                            <span style={{ fontSize:'0.58rem', color:'#7a8aaa', display:'inline-block', transition:'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
+                          </div>
+                        </div>
+                        <div style={{ height:4, background:'#eef1f8' }}>
+                          <div style={{ height:'100%', width:tPct+'%', background:'linear-gradient(90deg,#4a67c8,#80a0f0)', transition:'width 0.4s' }} />
+                        </div>
+                        {isOpen && (
+                          <div style={{ padding:'0.8rem', background:'#f7f9ff', borderTop:'1px solid #eef1f8' }}>
+                            <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.7rem', alignItems:'center' }}>
+                              <button className="mbtn" style={{ background:'#eef1ff', color:'#2e4080', border:'1.5px solid #4a67c8' }} onClick={e => { e.stopPropagation(); markAll(t.name, t.dafim); }}>✓ סמן הכל</button>
+                              {cnt > 0 && <button className="mbtn" style={{ background:'#fff0f0', color:'#8b2020', border:'1.5px solid #e8b0b0' }} onClick={e => { e.stopPropagation(); unmarkAll(t.name, t.dafim); }}>✕ נקה הכל</button>}
+                              <span style={{ fontSize:'0.68rem', color:'#7a8aaa', marginRight:'auto' }}>{tPct}%</span>
+                            </div>
+                            <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+                              {Array.from({ length: t.dafim }, (_, i) => i + 2).map(daf =>
+                                ['א','ב'].map(amud => {
+                                  const k = amudKey(t.name, daf, amud);
+                                  const isL = !!learned[k];
+                                  return (
+                                    <div key={k} className={'amud-cell' + (isL ? ' learned' : '') + (flash === k ? ' flash' : '')}
+                                      onClick={() => toggleAmud(t.name, daf, amud)}>
+                                      <span className="daf-num">{HEB[daf]}</span>
+                                      <span className="amud-letter">{amud}</span>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </>}
+
+        {tab === 'journal' && (
+          <div style={{ maxWidth:660, margin:'0 auto' }}>
+            <div style={{ marginBottom:'1.2rem' }}>
+              <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.15rem', fontWeight:700, color:'#2e4080', marginBottom:'0.2rem' }}>יומן למידה</div>
+              <div style={{ fontSize:'0.8rem', color:'#7a8aaa' }}>רשום היכן הגעת, מה חידשת, מה רצית לזכור</div>
+            </div>
+            <div style={{ background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:12, padding:'1rem', marginBottom:'1.2rem', boxShadow:'0 2px 8px rgba(30,45,90,0.06)' }}>
+              <textarea value={newEntry} onChange={e => setNewEntry(e.target.value)}
+                placeholder={"הגעתי עד...\nחידוש שראיתי...\nרעיון שרציתי לזכור..."}
+                style={{ width:'100%', minHeight:85, background:'#f2f5fc', border:'1.5px solid #d8e0f0', borderRadius:8, color:'#1a2340', fontFamily:"'Heebo',sans-serif", fontSize:'0.9rem', padding:'0.75rem', resize:'vertical', direction:'rtl', lineHeight:1.65 }}
+              />
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'0.6rem' }}>
+                <span style={{ fontSize:'0.7rem', color:'#7a8aaa' }}>היום: {today()}</span>
+                <button onClick={addEntry} style={{ background:'#2a40a0', color:'#fff', border:'none', borderRadius:8, padding:'0.48rem 1.1rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'0.85rem', cursor:'pointer' }}>+ הוסף</button>
+              </div>
+            </div>
+            {journal.length === 0 && (
+              <div style={{ textAlign:'center', color:'#7a8aaa', padding:'2.5rem', fontSize:'0.88rem' }}>
+                <div style={{ fontSize:'2rem', marginBottom:'0.5rem' }}>📝</div>
+                עדיין אין רשומות · התחל לכתוב!
+              </div>
+            )}
+            {journal.map((entry, idx) => (
+              <div key={entry.id} className="journal-entry">
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'0.45rem' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'0.55rem' }}>
+                    <span style={{ background:'#eef1ff', color:'#2e4080', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'0.78rem', padding:'0.08rem 0.4rem', borderRadius:6 }}>{idx+1}</span>
+                    <span style={{ fontSize:'0.7rem', color:'#7a8aaa' }}>{entry.date}</span>
+                  </div>
+                  <div className="entry-actions">
+                    <button className="entry-btn" onClick={() => { setEditingId(entry.id); setEditText(entry.text); }}>✏️</button>
+                    <button className="entry-btn del" onClick={() => deleteEntry(entry.id)}>🗑</button>
+                  </div>
+                </div>
+                {editingId === entry.id ? (
+                  <div>
+                    <textarea value={editText} onChange={e => setEditText(e.target.value)}
+                      style={{ width:'100%', minHeight:75, background:'#f2f5fc', border:'1.5px solid #d8e0f0', borderRadius:8, color:'#1a2340', fontFamily:"'Heebo',sans-serif", fontSize:'0.88rem', padding:'0.65rem', resize:'vertical', direction:'rtl' }} />
+                    <div style={{ display:'flex', gap:'0.5rem', marginTop:'0.5rem', justifyContent:'flex-end' }}>
+                      <button onClick={() => setEditingId(null)} style={{ background:'#eef1ff', border:'1px solid #d8e0f0', color:'#3a4f7a', padding:'0.32rem 0.75rem', borderRadius:7, cursor:'pointer', fontSize:'0.8rem', fontFamily:"'Heebo',sans-serif" }}>ביטול</button>
+                      <button onClick={() => saveEdit(entry.id)} style={{ background:'#2a40a0', color:'#fff', border:'none', padding:'0.32rem 0.85rem', borderRadius:7, cursor:'pointer', fontSize:'0.8rem', fontFamily:"'Heebo',sans-serif", fontWeight:700 }}>שמור</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize:'0.9rem', lineHeight:1.72, color:'#1a2340', whiteSpace:'pre-wrap' }}>{entry.text}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

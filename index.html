@@ -102,6 +102,47 @@ const SHAS = [
 const HEB = ['','א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב','יג','יד','טו','טז','יז','יח','יט','כ','כא','כב','כג','כד','כה','כו','כז','כח','כט','ל','לא','לב','לג','לד','לה','לו','לז','לח','לט','מ','מא','מב','מג','מד','מה','מו','מז','מח','מט','נ','נא','נב','נג','נד','נה','נו','נז','נח','נט','ס','סא','סב','סג','סד','סה','סו','סז','סח','סט','ע','עא','עב','עג','עד','עה','עו','עז','עח','עט','פ','פא','פב','פג','פד','פה','פו','פז','פח','פט','צ','צא','צב','צג','צד','צה','צו','צז','צח','צט','ק','קא','קב','קג','קד','קה','קו','קז','קח','קט','קי','קיא','קיב','קיג','קיד','קטו','קטז','קיז','קיח','קיט','קכ','קכא','קכב','קכג','קכד','קכה','קכו','קכז','קכח','קכט','קל','קלא','קלב','קלג','קלד','קלה','קלו','קלז','קלח','קלט','קמ','קמא','קמב','קמג','קמד','קמה','קמו','קמז','קמח','קמט','קנ','קנא','קנב','קנג','קנד','קנה','קנו','קנז','קנח','קנט','קס','קסא','קסב','קסג','קסד','קסה','קסו','קסז','קסח','קסט','קע','קעא','קעב','קעג','קעד','קעה','קעו'];
 
 const TOTAL_AMUDIM = SHAS.reduce((s, sed) => s + sed.tractates.reduce((ss, t) => ss + t.dafim * 2, 0), 0);
+
+const TRACTATE_LINKS = {
+  'ברכות':    { hb: 1,  sefaria: 'Berakhot' },
+  'שבת':      { hb: 2,  sefaria: 'Shabbat' },
+  'עירובין':  { hb: 3,  sefaria: 'Eruvin' },
+  'פסחים':    { hb: 4,  sefaria: 'Pesachim' },
+  'שקלים':    { hb: 5,  sefaria: 'Shekalim' },
+  'יומא':     { hb: 6,  sefaria: 'Yoma' },
+  'סוכה':     { hb: 7,  sefaria: 'Sukkah' },
+  'ביצה':     { hb: 8,  sefaria: 'Beitzah' },
+  'ראש השנה': { hb: 9,  sefaria: 'Rosh_Hashanah' },
+  'תענית':    { hb: 10, sefaria: 'Taanit' },
+  'מגילה':    { hb: 11, sefaria: 'Megillah' },
+  'מועד קטן': { hb: 12, sefaria: 'Moed_Katan' },
+  'חגיגה':    { hb: 13, sefaria: 'Chagigah' },
+  'יבמות':    { hb: 14, sefaria: 'Yevamot' },
+  'כתובות':   { hb: 15, sefaria: 'Ketubot' },
+  'נדרים':    { hb: 16, sefaria: 'Nedarim' },
+  'נזיר':     { hb: 17, sefaria: 'Nazir' },
+  'סוטה':     { hb: 18, sefaria: 'Sotah' },
+  'גיטין':    { hb: 19, sefaria: 'Gittin' },
+  'קידושין':  { hb: 20, sefaria: 'Kiddushin' },
+  'בבא קמא':  { hb: 21, sefaria: 'Bava_Kamma' },
+  'בבא מציעא':{ hb: 22, sefaria: 'Bava_Metzia' },
+  'בבא בתרא': { hb: 23, sefaria: 'Bava_Batra' },
+  'סנהדרין':  { hb: 24, sefaria: 'Sanhedrin' },
+  'מכות':     { hb: 25, sefaria: 'Makkot' },
+  'שבועות':   { hb: 26, sefaria: 'Shevuot' },
+  'עבודה זרה':{ hb: 27, sefaria: 'Avodah_Zarah' },
+  'הוריות':   { hb: 28, sefaria: 'Horayot' },
+  'זבחים':    { hb: 29, sefaria: 'Zevachim' },
+  'מנחות':    { hb: 30, sefaria: 'Menachot' },
+  'חולין':    { hb: 31, sefaria: 'Chullin' },
+  'בכורות':   { hb: 32, sefaria: 'Bekhorot' },
+  'ערכין':    { hb: 33, sefaria: 'Arakhin' },
+  'תמורה':    { hb: 34, sefaria: 'Temurah' },
+  'כריתות':   { hb: 35, sefaria: 'Keritot' },
+  'מעילה':    { hb: 36, sefaria: 'Meilah' },
+  'תמיד':     { hb: 37, sefaria: 'Tamid' },
+  'נידה':     { hb: 38, sefaria: 'Niddah' },
+};
 const QUOTE = 'כִּי עַל־יְדֵי רִבּוּי הַלִּמּוּד שֶׁיִּלְמַד בִּמְהִירוּת וְיִזְכֶּה לִלְמֹד הַרְבֵּה, עַל־יְדֵי־זֶה יִזְכֶּה לַעֲבֹר כַּמָּה פְּעָמִים אֵלּוּ הַסְּפָרִים שֶׁלּוֹמֵד, לְגָמְרָם וְלַחֲזֹר לְהַתְחִיל וּלְגָמְרָם פַּעַם אַחַר פַּעַם. וְעַל־יְדֵי־זֶה מִמֵּילָא יָבִין בַּפַּעַם הַשֵּׁנִי וְהַשְּׁלִישִׁי כָּל מַה שֶּׁלֹּא הָיָה מֵבִין בִּתְחִלָּה, כָּל מַה שֶּׁאֶפְשָׁר לְהָבִין וְלַעֲמֹד עַל דִּבְרֵיהֶם.';
 
 function amudKey(t, d, a) { return t + '||' + d + '||' + a; }
@@ -242,7 +283,7 @@ function App() {
       <div style={{ background:'linear-gradient(135deg,#1a2d6e 0%,#2a40a0 100%)', boxShadow:'0 3px 20px rgba(20,40,100,0.3)', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ padding:'0.9rem 1.2rem 0.5rem', maxWidth:1080, margin:'0 auto', display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:'0.6rem' }}>
           <div>
-            <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:900, color:'#e8f0ff', lineHeight:1.15 }}>מעקב ש"ס · עמיחי צדוק</div>
+            <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:900, color:'#e8f0ff', lineHeight:1.15 }}>מעקב ש"ס · {user?.displayName || ''}</div>
             <div style={{ fontSize:'0.72rem', color:'#e8c040', fontWeight:600, marginTop:'0.2rem' }}>בעזרת ה׳ — תתחזק, אתה תצליח ✨</div>
           </div>          <div style={{ display:'flex', gap:'1.2rem', alignItems:'center', flexWrap:'wrap' }}>
             <div style={{ textAlign:'center' }}>
@@ -333,6 +374,16 @@ function App() {
                           style={{ padding:'0.8rem 1rem 0.65rem', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', userSelect:'none' }}>
                           <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.05rem', fontWeight:700, color: isComplete ? '#4a67c8' : '#1a2340' }}>{t.name}</span>
                           <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+                            {TRACTATE_LINKS[t.name] && (<>
+                              <a href={'https://www.sefaria.org.il/' + TRACTATE_LINKS[t.name].sefaria} target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                title="שטיינזלץ – ספריא"
+                                style={{ fontSize:'0.6rem', textDecoration:'none', color:'#4a67c8', background:'#eef1ff', border:'1px solid #c0ccf0', borderRadius:4, padding:'0.1rem 0.3rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>שטיינ׳</a>
+                              <a href={'https://hebrewbooks.org/shas.aspx?mesechta=' + TRACTATE_LINKS[t.name].hb + '&daf=2&format=pdf'} target="_blank" rel="noopener noreferrer"
+                                onClick={e => e.stopPropagation()}
+                                title="צורת הדף – היברו בוקס"
+                                style={{ fontSize:'0.6rem', textDecoration:'none', color:'#4a67c8', background:'#eef1ff', border:'1px solid #c0ccf0', borderRadius:4, padding:'0.1rem 0.3rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>דף</a>
+                            </>)}
                             {isComplete && <span style={{ background:'#eef1ff', color:'#4a67c8', border:'1px solid #4a67c8', fontSize:'0.58rem', fontWeight:700, padding:'0.1rem 0.35rem', borderRadius:5 }}>✓ הושלם</span>}
                             <span style={{ fontSize:'0.72rem', color:'#7a8aaa' }}>{cnt}/{totalAm}</span>
                             <span style={{ fontSize:'0.58rem', color:'#7a8aaa', display:'inline-block', transition:'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
@@ -424,6 +475,9 @@ function App() {
             ))}
           </div>
         )}
+      </div>
+      <div style={{ textAlign:"right", padding:"0.5rem 1.5rem", fontSize:"0.65rem", color:"#aab4cc" }}>
+        נוצר ע"י עמיחי צדוק
       </div>
     </div>
   );

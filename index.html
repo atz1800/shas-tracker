@@ -25,6 +25,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/@hebcal/core@5.7.0/dist/bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script type="module" id="fb-init">
@@ -163,7 +164,8 @@ function today() { return new Date().toLocaleDateString('he-IL', { day:'numeric'
 async function fbSave(uid, key, val) {
   try {
     const { db, doc, setDoc } = window._fb;
-    await setDoc(doc(db, 'users', uid), { [key]: JSON.stringify(val) }, { merge: true });
+    const stored = typeof val === 'string' ? val : JSON.stringify(val);
+    await setDoc(doc(db, 'users', uid), { [key]: stored }, { merge: true });
   } catch(e) { console.error('save error', e); }
 }
 async function fbLoad(uid) {
@@ -173,6 +175,30 @@ async function fbLoad(uid) {
     if (snap.exists()) return snap.data();
   } catch(e) { console.error('load error', e); }
   return {};
+}
+
+// ממיר תאריך לועזי לתאריך עברי מילולי
+function toHebrewDate(date) {
+  try {
+    const hebcal = window.Hebcal || window.hebcal;
+    if (!hebcal) return null;
+    const hd = new hebcal.HDate(date);
+    return hd.render('he');
+  } catch(e) { return null; }
+}
+
+// מחשב את יום ההולדת העברי בשנה נתונה (לועזית)
+function hebrewBirthdayInYear(birthDate, targetYear) {
+  try {
+    const hebcal = window.Hebcal || window.hebcal;
+    if (!hebcal) return null;
+    const birthHeb = new hebcal.HDate(birthDate);
+    // יום הולדת עברי בשנה העברית המתאימה
+    const targetGregorianApprox = new Date(targetYear, 5, 1); // אמצע השנה
+    const targetHebYear = new hebcal.HDate(targetGregorianApprox).getFullYear();
+    const bdayThisYear = new hebcal.HDate(birthHeb.getDate(), birthHeb.getMonth(), targetHebYear);
+    return { hebrew: bdayThisYear.render('he'), gregorian: bdayThisYear.greg() };
+  } catch(e) { return null; }
 }
 
 function App() {
@@ -201,8 +227,8 @@ function App() {
       setUser(u);
       if (u) {
         const data = await fbLoad(u.uid);
-        setLearned(data['shas-learned'] ? JSON.parse(data['shas-learned']) : {});
-        setJournal(data['shas-journal'] ? JSON.parse(data['shas-journal']) : []);
+        try { setLearned(data['shas-learned'] ? JSON.parse(data['shas-learned']) : {}); } catch(e) { setLearned({}); }
+        try { setJournal(data['shas-journal'] ? JSON.parse(data['shas-journal']) : []); } catch(e) { setJournal([]); }
         if (data['shas-target']) {
           const raw = data['shas-target'];
           setTargetDate(raw); setTargetInput(raw);
@@ -211,6 +237,7 @@ function App() {
             setAgeInput(String(o.age));
             // תמיכה בפורמט ישן YYYY-MM וחדש YYYY-MM-DD
             const b = o.birth || '';
+            // תמיכה בפורמט YYYY-MM (ישן) ו-YYYY-MM-DD (חדש)
             setBirthInput(b.length === 7 ? b + '-01' : b);
           } catch(e) {}
         }
@@ -387,7 +414,7 @@ function App() {
         {tab === 'shas' && <>
           <div style={{ background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:12, padding:'0.8rem 1.2rem', marginBottom:'1.2rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.5rem', boxShadow:'0 1px 6px rgba(30,45,90,0.06)' }}>
             {targetObj2 ? (<>
-              <div style={{ fontSize:'0.86rem', color:'#3a4f7a' }}>🎯 יעד: {targetObj2.age !== '?' && <>סיום עד גיל <span style={{ color:'#2a40a0', fontWeight:700 }}>{targetObj2.age}</span> · </>}<span style={{ color:'#5a70aa' }}>{(() => { try { return new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { day:'numeric', month:'long', year:'numeric' }).format(new Date(targetObj2.date)); } catch(e) { return new Date(targetObj2.date).toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric' }); } })()}</span> · <span style={{ color:'#2a40a0', fontWeight:700 }}>{remaining.toLocaleString()}</span> עמודים נותרו</div>
+              <div style={{ fontSize:'0.86rem', color:'#3a4f7a' }}>🎯 יעד: {targetObj2.age !== '?' && <>סיום עד גיל <span style={{ color:'#2a40a0', fontWeight:700 }}>{targetObj2.age}</span> · </>}<span style={{ color:'#5a70aa' }}>{targetObj2.hebrewLabel || (() => { try { return new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { day:'numeric', month:'long', year:'numeric' }).format(new Date(targetObj2.date)); } catch(e) { return new Date(targetObj2.date).toLocaleDateString('he-IL'); } })()}</span> · <span style={{ color:'#2a40a0', fontWeight:700 }}>{remaining.toLocaleString()}</span> עמודים נותרו</div>
               <div style={{ fontSize:'0.82rem', color:'#3a4f7a' }}>קצב נדרש: <span style={{ color:'#1a7a50', fontWeight:700 }}>{dafsPerWeek} דפים / {amudimPerWeek} עמודים בשבוע</span></div>
             </>) : (
               <div style={{ fontSize:'0.86rem', color:'#7a8aaa', fontStyle:'italic' }}>אז מה היעד שלך? <span style={{ color:'#4a67c8', cursor:'pointer', fontStyle:'normal', fontWeight:600 }} onClick={() => setTab('target')}>הגדר עכשיו ←</span></div>
@@ -475,18 +502,11 @@ function App() {
 
         {tab === 'target' && (() => {
           const targetObj = targetDate ? (() => { try { return JSON.parse(targetDate); } catch(e) { return null; } })() : null;
-          const computedDate = (ageInput && birthInput) ? (() => {
-            const parts = birthInput.split('-').map(Number);
-            const y = parts[0], m = parts[1], d = parts[2] || 1;
-            return new Date(y + Number(ageInput), m - 1, d);
-          })() : null;
-          const hebrewDate = computedDate ? (() => {
-            try {
-              return new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { day: 'numeric', month: 'long', year: 'numeric' }).format(computedDate);
-            } catch(e) {
-              return computedDate.toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric' });
-            }
-          })() : null;
+          const birthDateObj = (birthInput && birthInput.split('-').filter(Boolean).length === 3) ? new Date(birthInput) : null;
+          const targetYear = birthDateObj ? birthDateObj.getFullYear() + Number(ageInput) : null;
+          const bdayResult = (birthDateObj && ageInput) ? hebrewBirthdayInYear(birthDateObj, targetYear) : null;
+          const computedDate = bdayResult ? bdayResult.gregorian : null;
+          const hebrewDate = bdayResult ? bdayResult.hebrew : null;
           return (
           <div style={{ maxWidth:500, margin:'0 auto' }}>
             <div style={{ background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:16, padding:'2rem', boxShadow:'0 2px 12px rgba(30,45,90,0.08)', textAlign:'center' }}>
@@ -504,7 +524,7 @@ function App() {
                     סיום עד גיל {targetObj.age}
                   </div>
                   <div style={{ fontSize:'0.82rem', color:'#5a70aa', marginTop:'0.2rem' }}>
-                    {(() => { try { return new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { day:'numeric', month:'long', year:'numeric' }).format(new Date(targetObj.date)); } catch(e) { return new Date(targetObj.date).toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric' }); } })()}
+                    {targetObj.hebrewLabel || (() => { try { return new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { day:'numeric', month:'long', year:'numeric' }).format(new Date(targetObj.date)); } catch(e) { return new Date(targetObj.date).toLocaleDateString('he-IL'); } })()}
                   </div>
                 </div>
               )}
@@ -518,9 +538,29 @@ function App() {
                 </div>
                 <div>
                   <div style={{ fontSize:'0.8rem', color:'#5a70aa', marginBottom:'0.3rem', fontWeight:600 }}>תאריך לידה</div>
-                  <input type="date" value={birthInput} onChange={e => setBirthInput(e.target.value)}
-                    style={{ width:'100%', border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.65rem 0.9rem', fontFamily:"'Heebo',sans-serif", fontSize:'1rem', color:'#1a2340', direction:'ltr', boxSizing:'border-box' }}
-                  />
+                  <div style={{ display:'flex', gap:'0.5rem', direction:'rtl' }}>
+                    <select value={birthInput.split('-')[2] || ''} onChange={e => {
+                      const parts = birthInput.split('-');
+                      setBirthInput((parts[0]||'2000') + '-' + (parts[1]||'01') + '-' + e.target.value.padStart(2,'0'));
+                    }} style={{ flex:1, border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.6rem 0.4rem', fontFamily:"'Heebo',sans-serif", fontSize:'0.95rem', color:'#1a2340' }}>
+                      <option value="">יום</option>
+                      {Array.from({length:31},(_,i)=>i+1).map(d => <option key={d} value={String(d).padStart(2,'0')}>{d}</option>)}
+                    </select>
+                    <select value={birthInput.split('-')[1] || ''} onChange={e => {
+                      const parts = birthInput.split('-');
+                      setBirthInput((parts[0]||'2000') + '-' + e.target.value + '-' + (parts[2]||'01'));
+                    }} style={{ flex:2, border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.6rem 0.4rem', fontFamily:"'Heebo',sans-serif", fontSize:'0.95rem', color:'#1a2340' }}>
+                      <option value="">חודש</option>
+                      {['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'].map((mn,i) => <option key={i+1} value={String(i+1).padStart(2,'0')}>{mn}</option>)}
+                    </select>
+                    <select value={birthInput.split('-')[0] || ''} onChange={e => {
+                      const parts = birthInput.split('-');
+                      setBirthInput(e.target.value + '-' + (parts[1]||'01') + '-' + (parts[2]||'01'));
+                    }} style={{ flex:2, border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.6rem 0.4rem', fontFamily:"'Heebo',sans-serif", fontSize:'0.95rem', color:'#1a2340' }}>
+                      <option value="">שנה</option>
+                      {Array.from({length:80},(_,i)=>2010-i).map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
                 </div>
               </div>
               {computedDate && (
@@ -530,10 +570,11 @@ function App() {
               )}
               <button onClick={async () => {
                 if (!ageInput || !birthInput) return;
-                const parts = birthInput.split('-').map(Number);
-                const [y, m, day] = [parts[0], parts[1], parts[2] || 1];
-                const d = new Date(y + Number(ageInput), m - 1, day);
-                const obj = { age: Number(ageInput), birth: birthInput, date: d.toISOString() };
+                const birthDateObjSave = new Date(birthInput);
+                const targetYearSave = birthDateObjSave.getFullYear() + Number(ageInput);
+                const bdaySave = hebrewBirthdayInYear(birthDateObjSave, targetYearSave);
+                const d = bdaySave ? bdaySave.gregorian : new Date(birthDateObjSave.getFullYear() + Number(ageInput), birthDateObjSave.getMonth(), birthDateObjSave.getDate());
+                const obj = { age: Number(ageInput), birth: birthInput, date: d.toISOString(), hebrewLabel: bdaySave ? bdaySave.hebrew : null };
                 const val = JSON.stringify(obj);
                 setTargetDate(val); setTargetInput(val);
                 await fbSave(user.uid, 'shas-target', val);

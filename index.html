@@ -269,7 +269,8 @@ function App() {
   const totalLearned = Object.keys(learned).length;
   const pct = Math.round((totalLearned / TOTAL_AMUDIM) * 100);
   const remaining = TOTAL_AMUDIM - totalLearned;
-  const TARGET = targetDate ? new Date(targetDate) : null;
+  const targetObj2 = targetDate ? (() => { try { return JSON.parse(targetDate); } catch(e) { return null; } })() : null;
+  const TARGET = targetObj2 ? new Date(targetObj2.date) : null;
   const weeksLeft = TARGET ? Math.max(1, (TARGET - new Date()) / (7*24*60*60*1000)) : null;
   const amudimPerWeek = weeksLeft ? (remaining / weeksLeft).toFixed(1) : null;
   const dafsPerWeek = weeksLeft ? (remaining / weeksLeft / 2).toFixed(1) : null;
@@ -364,8 +365,8 @@ function App() {
 
         {tab === 'shas' && <>
           <div style={{ background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:12, padding:'0.8rem 1.2rem', marginBottom:'1.2rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.5rem', boxShadow:'0 1px 6px rgba(30,45,90,0.06)' }}>
-            {targetDate ? (<>
-              <div style={{ fontSize:'0.86rem', color:'#3a4f7a' }}>🎯 יעד: <span style={{ color:'#2a40a0', fontWeight:700 }}>{new Date(targetDate).toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric' })}</span> · <span style={{ color:'#2a40a0', fontWeight:700 }}>{remaining.toLocaleString()}</span> עמודים נותרו</div>
+            {targetObj2 ? (<>
+              <div style={{ fontSize:'0.86rem', color:'#3a4f7a' }}>🎯 יעד: סיום עד גיל <span style={{ color:'#2a40a0', fontWeight:700 }}>{targetObj2.age}</span> · <span style={{ color:'#5a70aa' }}>{new Date(targetObj2.date).toLocaleDateString('he-IL', { month:'long', year:'numeric' })}</span> · <span style={{ color:'#2a40a0', fontWeight:700 }}>{remaining.toLocaleString()}</span> עמודים נותרו</div>
               <div style={{ fontSize:'0.82rem', color:'#3a4f7a' }}>קצב נדרש: <span style={{ color:'#1a7a50', fontWeight:700 }}>{dafsPerWeek} דפים / {amudimPerWeek} עמודים בשבוע</span></div>
             </>) : (
               <div style={{ fontSize:'0.86rem', color:'#7a8aaa', fontStyle:'italic' }}>אז מה היעד שלך? <span style={{ color:'#4a67c8', cursor:'pointer', fontStyle:'normal', fontWeight:600 }} onClick={() => setTab('target')}>הגדר עכשיו ←</span></div>
@@ -451,40 +452,78 @@ function App() {
           })}
         </>}
 
-        {tab === 'target' && (
+        {tab === 'target' && (() => {
+          const targetObj = targetDate ? JSON.parse(targetDate) : null;
+          const targetAgeVal = targetObj ? targetObj.age : '';
+          const targetBirthVal = targetObj ? targetObj.birth : '';
+          const [ageInput, setAgeInput] = React.useState(targetAgeVal);
+          const [birthInput, setBirthInput] = React.useState(targetBirthVal);
+          const computedDate = (ageInput && birthInput) ? (() => {
+            const [y, m] = birthInput.split('-').map(Number);
+            const d = new Date(y + Number(ageInput), m - 1, 1);
+            return d;
+          })() : null;
+          const hebrewDate = computedDate ? computedDate.toLocaleDateString('he-IL', { month:'long', year:'numeric' }) : null;
+          return (
           <div style={{ maxWidth:500, margin:'0 auto' }}>
             <div style={{ background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:16, padding:'2rem', boxShadow:'0 2px 12px rgba(30,45,90,0.08)', textAlign:'center' }}>
               <div style={{ fontSize:'2.5rem', marginBottom:'0.8rem' }}>🎯</div>
-              <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:700, color:'#2e4080', marginBottom:'0.4rem' }}>
-                {targetDate ? 'היעד שלך' : 'אז מה היעד שלך?'}
+              <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:700, color:'#2e4080', marginBottom:'0.3rem' }}>
+                באיזה גיל היית רוצה לסיים את הש"ס?
               </div>
               <div style={{ fontSize:'0.82rem', color:'#7a8aaa', marginBottom:'1.8rem' }}>
-                {targetDate
-                  ? 'תמיד אפשר לשנות את תאריך היעד'
-                  : 'הגדר תאריך יעד לסיום הש\"ס ונחשב יחד את הקצב הנדרש'}
+                {targetObj ? 'תמיד אפשר לעדכן' : 'נחשב יחד את הקצב הנדרש'}
               </div>
-              {targetDate && (
+
+              {targetObj && (
                 <div style={{ background:'#eef1ff', border:'1.5px solid #c0ccf0', borderRadius:12, padding:'1rem', marginBottom:'1.5rem' }}>
-                  <div style={{ fontSize:'0.78rem', color:'#5a70aa', marginBottom:'0.3rem' }}>יעד נוכחי</div>
-                  <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.2rem', fontWeight:700, color:'#2a40a0' }}>
-                    {new Date(targetDate).toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric' })}
+                  <div style={{ fontSize:'0.75rem', color:'#5a70aa', marginBottom:'0.3rem' }}>היעד שלך</div>
+                  <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:700, color:'#2a40a0' }}>
+                    סיום עד גיל {targetObj.age}
+                  </div>
+                  <div style={{ fontSize:'0.82rem', color:'#5a70aa', marginTop:'0.2rem' }}>
+                    {new Date(targetObj.date).toLocaleDateString('he-IL', { month:'long', year:'numeric' })}
                   </div>
                 </div>
               )}
-              <div style={{ display:'flex', gap:'0.6rem', alignItems:'center', marginBottom:'1rem', direction:'rtl' }}>
-                <input type="date" value={targetInput} onChange={e => setTargetInput(e.target.value)}
-                  style={{ flex:1, border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.6rem 0.8rem', fontFamily:"'Heebo',sans-serif", fontSize:'0.9rem', color:'#1a2340', direction:'ltr' }}
-                />
-                <button onClick={async () => {
-                  if (!targetInput) return;
-                  setTargetDate(targetInput);
-                  await fbSave(user.uid, 'shas-target', targetInput);
-                  setTab('shas');
-                }} style={{ background:'#2a40a0', color:'#fff', border:'none', borderRadius:8, padding:'0.6rem 1.2rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'0.88rem', cursor:'pointer' }}>
-                  {targetDate ? 'עדכן' : 'הגדר'}
-                </button>
+
+              <div style={{ display:'flex', flexDirection:'column', gap:'1rem', marginBottom:'1.2rem', textAlign:'right' }}>
+                <div>
+                  <div style={{ fontSize:'0.8rem', color:'#5a70aa', marginBottom:'0.3rem', fontWeight:600 }}>גיל יעד לסיום</div>
+                  <input type="number" min="20" max="120" value={ageInput} onChange={e => setAgeInput(e.target.value)}
+                    placeholder="למשל: 50"
+                    style={{ width:'100%', border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.65rem 0.9rem', fontFamily:"'Heebo',sans-serif", fontSize:'1rem', color:'#1a2340', textAlign:'center' }}
+                  />
+                </div>
+                <div>
+                  <div style={{ fontSize:'0.8rem', color:'#5a70aa', marginBottom:'0.3rem', fontWeight:600 }}>שנת וחודש לידה</div>
+                  <input type="month" value={birthInput} onChange={e => setBirthInput(e.target.value)}
+                    style={{ width:'100%', border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.65rem 0.9rem', fontFamily:"'Heebo',sans-serif", fontSize:'1rem', color:'#1a2340', direction:'ltr' }}
+                  />
+                </div>
               </div>
-              {targetDate && (
+
+              {computedDate && (
+                <div style={{ fontSize:'0.85rem', color:'#3a4f7a', marginBottom:'1.2rem', background:'#f7f9ff', borderRadius:8, padding:'0.6rem' }}>
+                  תאריך יעד מחושב: <strong>{hebrewDate}</strong>
+                </div>
+              )}
+
+              <button onClick={async () => {
+                if (!ageInput || !birthInput) return;
+                const [y, m] = birthInput.split('-').map(Number);
+                const d = new Date(y + Number(ageInput), m - 1, 1);
+                const obj = { age: Number(ageInput), birth: birthInput, date: d.toISOString() };
+                const val = JSON.stringify(obj);
+                setTargetDate(val);
+                setTargetInput(val);
+                await fbSave(user.uid, 'shas-target', val);
+                setTab('shas');
+              }} style={{ background:'#2a40a0', color:'#fff', border:'none', borderRadius:8, padding:'0.7rem 2rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'0.95rem', cursor:'pointer', width:'100%', marginBottom:'0.8rem' }}>
+                {targetObj ? 'עדכן יעד' : 'הגדר יעד'}
+              </button>
+
+              {targetObj && (
                 <button onClick={async () => {
                   setTargetDate(null); setTargetInput('');
                   await fbSave(user.uid, 'shas-target', '');
@@ -494,7 +533,8 @@ function App() {
               )}
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {tab === 'journal' && (
           <div style={{ maxWidth:660, margin:'0 auto' }}>

@@ -218,7 +218,25 @@ function App() {
   const [targetInput, setTargetInput] = useState('');
   const [ageInput, setAgeInput] = useState('');
   const [birthInput, setBirthInput] = useState('');
-  const saveTimer = useRef(null);
+  const learnedRef = useRef({});
+  useEffect(() => { learnedRef.current = learned; }, [learned]);
+
+  useEffect(() => {
+    if (!user) return;
+    const uid = user.uid;
+    const flushLearned = () => {
+      fbSave(uid, 'shas-learned', learnedRef.current);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushLearned();
+    };
+    window.addEventListener('pagehide', flushLearned);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flushLearned);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [user]);
 
   useEffect(() => {
     const { auth, onAuthStateChanged, getRedirectResult } = window._fb;
@@ -261,19 +279,22 @@ function App() {
     const k = amudKey(tractate, daf, amud);
     const nl = { ...learned };
     if (nl[k]) { delete nl[k]; } else { nl[k] = true; setFlash(k); setTimeout(() => setFlash(null), 350); }
+    learnedRef.current = nl;
     setLearned(nl);
-    if (user) { clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => fbSave(user.uid, 'shas-learned', nl), 800); }
+    if (user) fbSave(user.uid, 'shas-learned', nl);
   }
 
   function markAll(tractate, dafim) {
     const nl = { ...learned };
     for (let d = 2; d <= dafim + 1; d++) { nl[amudKey(tractate,d,'א')] = true; nl[amudKey(tractate,d,'ב')] = true; }
+    learnedRef.current = nl;
     setLearned(nl); if (user) fbSave(user.uid, 'shas-learned', nl);
   }
 
   function unmarkAll(tractate, dafim) {
     const nl = { ...learned };
     for (let d = 2; d <= dafim + 1; d++) { delete nl[amudKey(tractate,d,'א')]; delete nl[amudKey(tractate,d,'ב')]; }
+    learnedRef.current = nl;
     setLearned(nl); if (user) fbSave(user.uid, 'shas-learned', nl);
   }
 
@@ -303,6 +324,31 @@ function App() {
   function saveEdit(id) {
     const nj = journal.map(e => e.id === id ? { ...e, text: editText } : e);
     setJournal(nj); if (user) fbSave(user.uid, 'shas-journal', nj); setEditingId(null);
+  }
+
+  function exportData() {
+    if (!user) return;
+    const backup = {
+      exportedAt: new Date().toISOString(),
+      userId: user.uid,
+      displayName: user.displayName || '',
+      data: {
+        learned,
+        journal,
+        target: targetDate
+      }
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
+    const safeDate = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `shas-backup-${safeDate}.json`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   const totalLearned = Object.keys(learned).length;
@@ -403,6 +449,7 @@ function App() {
           <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
             <img src={user.photoURL} style={{ width:22, height:22, borderRadius:'50%', border:'1.5px solid #4a67c8' }} />
             <span style={{ fontSize:'0.7rem', color:'#7a90cc' }}>{user.displayName?.split(' ')[0]}</span>
+            <button onClick={exportData} style={{ background:'linear-gradient(135deg,#ffb347,#ff8c00)', border:'1px solid #ffcf80', borderRadius:6, color:'#2d1a00', fontSize:'0.65rem', padding:'0.2rem 0.6rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif", fontWeight:700, boxShadow:'0 1px 6px rgba(255,140,0,0.35)' }}>גיבוי נתונים</button>
             <button onClick={signOutUser} style={{ background:'none', border:'1px solid rgba(255,255,255,0.15)', borderRadius:6, color:'#7a90cc', fontSize:'0.65rem', padding:'0.2rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>יציאה</button>
           </div>
         </div>

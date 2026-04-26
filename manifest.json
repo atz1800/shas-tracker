@@ -1,0 +1,17 @@
+{
+  "name": "מעקב ש\"ס",
+  "short_name": "מעקב ש\"ס",
+  "description": "עקוב אחר הלמידה שלך בדרך לסיום הש\"ס הבבלי",
+  "start_url": "/shas-tracker/",
+  "scope": "/shas-tracker/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1a2d6e",
+  "background_color": "#1a2d6e",
+  "dir": "rtl",
+  "lang": "he",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "og-image.png", "sizes": "1200x630", "type": "image/png" }
+  ]
+}

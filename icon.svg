@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#2a3f8f"/>
+      <stop offset="100%" stop-color="#0d1530"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff0a0"/>
+      <stop offset="40%" stop-color="#e8c840"/>
+      <stop offset="100%" stop-color="#a07010"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="36" fill="url(#bg)"/>
+  <circle cx="90" cy="90" r="74" fill="none" stroke="#c8a820" stroke-width="1.5" opacity="0.4"/>
+  <text x="90" y="122" text-anchor="middle" font-size="105" font-family="Frank Ruhl Libre, David, serif" font-weight="700" fill="url(#gold)">ש</text>
+</svg>

@@ -157,6 +157,13 @@ const TRACTATE_LINKS = {
   'תמיד':     { hb: 37, sefaria: 'Tamid',            ws: 'בבלי_תמיד',       sinai: '%d7%9e%d7%a1%d7%9b%d7%aa-%d7%aa%d7%9e%d7%99%d7%93' },
   'נידה':     { hb: 38, sefaria: 'Niddah',           ws: 'בבלי_נידה',       sinai: '%d7%9e%d7%a1%d7%9b%d7%aa-%d7%a0%d7%99%d7%93%d7%94' },
 };
+const PRESENTATIONS = {
+  'פסחים': {
+    // מספר דף → קישור Firebase Storage
+    // לדוגמה: 2: 'https://firebasestorage.googleapis.com/...'
+  }
+};
+
 const QUOTE = 'כִּי עַל־יְדֵי רִבּוּי הַלִּמּוּד שֶׁיִּלְמַד בִּמְהִירוּת וְיִזְכֶּה לִלְמֹד הַרְבֵּה, עַל־יְדֵי־זֶה יִזְכֶּה לַעֲבֹר כַּמָּה פְּעָמִים אֵלּוּ הַסְּפָרִים שֶׁלּוֹמֵד, לְגָמְרָם וְלַחֲזֹר לְהַתְחִיל וּלְגָמְרָם פַּעַם אַחַר פַּעַם. וְעַל־יְדֵי־זֶה מִמֵּילָא יָבִין בַּפַּעַם הַשֵּׁנִי וְהַשְּׁלִישִׁי כָּל מַה שֶּׁלֹּא הָיָה מֵבִין בִּתְחִלָּה, כָּל מַה שֶּׁאֶפְשָׁר לְהָבִין וְלַעֲמֹד עַל דִּבְרֵיהֶם.';
 
 function amudKey(t, d, a) { return t + '||' + d + '||' + a; }
@@ -645,6 +652,19 @@ function App() {
                                   style={{ background:'#2a40a0', color:'#fff', border:'none', borderRadius:6, padding:'0.28rem 0.85rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'0.75rem', cursor:'pointer' }}>
                                   ✓ סמן
                                 </button>
+                              </div>
+                            )}
+                            {PRESENTATIONS[t.name] && Object.keys(PRESENTATIONS[t.name]).length > 0 && (
+                              <div style={{ display:'flex', flexWrap:'wrap', gap:'0.4rem', marginBottom:'0.7rem', alignItems:'center', background:'#fffbef', border:'1px solid #f0d060', borderRadius:8, padding:'0.5rem 0.7rem' }}>
+                                <span style={{ fontSize:'0.7rem', color:'#8a6000', fontWeight:700, marginLeft:'0.3rem' }}>📊 מצגות:</span>
+                                {Object.entries(PRESENTATIONS[t.name]).map(([daf, url]) => url && (
+                                  <a key={daf} href={url} target="_blank" rel="noopener noreferrer"
+                                    style={{ fontSize:'0.72rem', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, color:'#8a6000', background:'#fef3c0', border:'1px solid #c8a010', borderRadius:5, padding:'0.15rem 0.45rem', textDecoration:'none', transition:'all 0.12s' }}
+                                    onMouseOver={e => e.currentTarget.style.background='#fde68a'}
+                                    onMouseOut={e => e.currentTarget.style.background='#fef3c0'}>
+                                    {HEB[Number(daf)]}
+                                  </a>
+                                ))}
                               </div>
                             )}
                             <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>

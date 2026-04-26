@@ -215,6 +215,7 @@ function App() {
   const [editText, setEditText] = useState('');
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [rangeState, setRangeState] = useState({});
   const [targetDate, setTargetDate] = useState(null);
   const [targetInput, setTargetInput] = useState('');
   const [ageInput, setAgeInput] = useState('');
@@ -312,6 +313,27 @@ function App() {
     for (let d = 2; d <= dafim + 1; d++) { delete nl[amudKey(tractate,d,'א')]; delete nl[amudKey(tractate,d,'ב')]; }
     learnedRef.current = nl;
     setLearned(nl); if (user) fbSave(user.uid, 'shas-learned', nl);
+  }
+
+  function updateRange(name, updates) {
+    setRangeState(rs => ({ ...rs, [name]: { ...rs[name], ...updates } }));
+  }
+
+  function markRange(tractate, dafim, fromDaf, fromAmud, toDaf, toAmud) {
+    const aIdx = a => a === 'א' ? 0 : 1;
+    const fromIdx = (fromDaf - 2) * 2 + aIdx(fromAmud);
+    const toIdx   = (toDaf  - 2) * 2 + aIdx(toAmud);
+    if (fromIdx > toIdx) return;
+    const nl = { ...learned };
+    for (let d = 2; d <= dafim + 1; d++) {
+      for (const amud of ['א','ב']) {
+        const idx = (d - 2) * 2 + aIdx(amud);
+        if (idx >= fromIdx && idx <= toIdx) nl[amudKey(tractate, d, amud)] = true;
+      }
+    }
+    learnedRef.current = nl;
+    setLearned(nl);
+    if (user) fbSave(user.uid, 'shas-learned', nl);
   }
 
   function countT(name, dafim) {
@@ -535,13 +557,55 @@ function App() {
                         <div style={{ height:4, background:'#eef1f8' }}>
                           <div style={{ height:'100%', width:tPct+'%', background:'linear-gradient(90deg,#4a67c8,#80a0f0)', transition:'width 0.4s' }} />
                         </div>
-                        {isOpen && (
+                        {isOpen && (() => {
+                          const rs = rangeState[t.name] || {};
+                          const showRange = rs.showRange || false;
+                          const rFromDaf  = rs.fromDaf  ?? 2;
+                          const rFromAmud = rs.fromAmud ?? 'א';
+                          const rToDaf    = rs.toDaf    ?? (t.dafim + 1);
+                          const rToAmud   = rs.toAmud   ?? 'ב';
+                          const dafOptions = Array.from({ length: t.dafim }, (_, i) => i + 2);
+                          const amudToggle = (field, val) => (
+                            <div style={{ display:'flex', border:'1px solid #c0ccf0', borderRadius:5, overflow:'hidden' }}>
+                              {['א','ב'].map(a => (
+                                <button key={a} onClick={e => { e.stopPropagation(); updateRange(t.name, { [field]: a }); }}
+                                  style={{ padding:'0.18rem 0.42rem', fontSize:'0.72rem', fontFamily:"'Frank Ruhl Libre',serif", border:'none', cursor:'pointer', background: val === a ? '#4a67c8' : '#eef1ff', color: val === a ? '#fff' : '#2e4080', fontWeight: val === a ? 700 : 400 }}>
+                                  {a}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                          return (
                           <div style={{ padding:'0.8rem', background:'#f7f9ff', borderTop:'1px solid #eef1f8' }}>
-                            <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.7rem', alignItems:'center' }}>
+                            <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.7rem', alignItems:'center', flexWrap:'wrap' }}>
                               <button className="mbtn" style={{ background:'#eef1ff', color:'#2e4080', border:'1.5px solid #4a67c8' }} onClick={e => { e.stopPropagation(); markAll(t.name, t.dafim); }}>✓ סמן הכל</button>
                               {cnt > 0 && <button className="mbtn" style={{ background:'#fff0f0', color:'#8b2020', border:'1.5px solid #e8b0b0' }} onClick={e => { e.stopPropagation(); unmarkAll(t.name, t.dafim); }}>✕ נקה הכל</button>}
+                              <button className="mbtn" style={{ background: showRange ? '#2e4080' : '#eef1ff', color: showRange ? '#fff' : '#2e4080', border:'1.5px solid #4a67c8' }}
+                                onClick={e => { e.stopPropagation(); updateRange(t.name, { showRange: !showRange }); }}>
+                                📏 סמן טווח {showRange ? '▲' : '▼'}
+                              </button>
                               <span style={{ fontSize:'0.68rem', color:'#7a8aaa', marginRight:'auto' }}>{tPct}%  ·  {t.dafim} דפים</span>
                             </div>
+                            {showRange && (
+                              <div style={{ background:'#fff', border:'1.5px solid #c0ccf0', borderRadius:9, padding:'0.65rem 0.9rem', marginBottom:'0.7rem', display:'flex', flexWrap:'wrap', gap:'0.5rem', alignItems:'center' }}>
+                                <span style={{ fontSize:'0.75rem', color:'#3a4f7a', fontWeight:600 }}>מדף</span>
+                                <select value={rFromDaf} onClick={e => e.stopPropagation()} onChange={e => { e.stopPropagation(); updateRange(t.name, { fromDaf: Number(e.target.value) }); }}
+                                  style={{ border:'1px solid #c0ccf0', borderRadius:5, padding:'0.2rem 0.3rem', fontFamily:"'Frank Ruhl Libre',serif", fontSize:'0.82rem', color:'#1a2340', background:'#f7f9ff' }}>
+                                  {dafOptions.map(d => <option key={d} value={d}>{HEB[d]}</option>)}
+                                </select>
+                                {amudToggle('fromAmud', rFromAmud)}
+                                <span style={{ fontSize:'0.75rem', color:'#3a4f7a', fontWeight:600 }}>עד דף</span>
+                                <select value={rToDaf} onClick={e => e.stopPropagation()} onChange={e => { e.stopPropagation(); updateRange(t.name, { toDaf: Number(e.target.value) }); }}
+                                  style={{ border:'1px solid #c0ccf0', borderRadius:5, padding:'0.2rem 0.3rem', fontFamily:"'Frank Ruhl Libre',serif", fontSize:'0.82rem', color:'#1a2340', background:'#f7f9ff' }}>
+                                  {dafOptions.map(d => <option key={d} value={d}>{HEB[d]}</option>)}
+                                </select>
+                                {amudToggle('toAmud', rToAmud)}
+                                <button onClick={e => { e.stopPropagation(); markRange(t.name, t.dafim, rFromDaf, rFromAmud, rToDaf, rToAmud); updateRange(t.name, { showRange: false }); }}
+                                  style={{ background:'#2a40a0', color:'#fff', border:'none', borderRadius:6, padding:'0.28rem 0.85rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'0.75rem', cursor:'pointer' }}>
+                                  ✓ סמן
+                                </button>
+                              </div>
+                            )}
                             <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
                               {Array.from({ length: t.dafim }, (_, i) => i + 2).map(daf =>
                                 ['א','ב'].map(amud => {
@@ -558,7 +622,8 @@ function App() {
                               )}
                             </div>
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     );
                   })}

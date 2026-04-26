@@ -566,10 +566,10 @@ function App() {
                     const isComplete = cnt === totalAm;
                     const isOpen = openCards[t.name];
                     return (
-                      <div key={t.name} style={{ background:'#fff', border:'1.5px solid ' + (isComplete ? '#4a67c8' : '#d8e0f0'), borderRadius:12, overflow:'hidden', boxShadow:'0 2px 8px rgba(30,45,90,0.06)' }}>
+                      <div key={t.name} style={{ background: isComplete ? '#fffbef' : '#fff', border:'1.5px solid ' + (isComplete ? '#c8a010' : '#d8e0f0'), borderRadius:12, overflow:'hidden', boxShadow: isComplete ? '0 2px 8px rgba(200,160,16,0.18)' : '0 2px 8px rgba(30,45,90,0.06)' }}>
                         <div className="thdr" onClick={() => setOpenCards(o => ({ ...o, [t.name]: !o[t.name] }))}
                           style={{ padding:'0.8rem 1rem 0.65rem', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', userSelect:'none' }}>
-                          <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.05rem', fontWeight:700, color: isComplete ? '#4a67c8' : '#1a2340' }}>{t.name}</span>
+                          <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.05rem', fontWeight:700, color: isComplete ? '#8a6000' : '#1a2340' }}>{t.name}</span>
                           <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
                             {TRACTATE_LINKS[t.name] && (<>
                               <a href={'https://www.sefaria.org.il/' + TRACTATE_LINKS[t.name].sefaria} target="_blank" rel="noopener noreferrer"
@@ -585,7 +585,7 @@ function App() {
                                 title="טקסט חופשי – ויקיטקסט"
                                 style={{ fontSize:'0.6rem', textDecoration:'none', color:'#4a67c8', background:'#eef1ff', border:'1px solid #c0ccf0', borderRadius:4, padding:'0.1rem 0.3rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>טקסט</a>
                             </>)}
-                            {isComplete && <span style={{ background:'#eef1ff', color:'#4a67c8', border:'1px solid #4a67c8', fontSize:'0.58rem', fontWeight:700, padding:'0.1rem 0.35rem', borderRadius:5 }}>✓ הושלם</span>}
+                            {isComplete && <span style={{ background:'#fef3c0', color:'#8a6000', border:'1px solid #c8a010', fontSize:'0.72rem', fontWeight:700, padding:'0.1rem 0.35rem', borderRadius:5 }}>✓</span>}
                             <span style={{ fontSize:'0.72rem', color:'#7a8aaa' }}>{cnt}/{totalAm}</span>
                             <span style={{ fontSize:'0.58rem', color:'#7a8aaa', display:'inline-block', transition:'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
                           </div>

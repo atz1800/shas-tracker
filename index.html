@@ -32,7 +32,7 @@
 <script type="module" id="fb-init">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, persistentMultipleTabManager, memoryLocalCache, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBiEfJgr_wyq33GpG5pHo37DXqKnrDYivo",
@@ -45,7 +45,18 @@
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  // persistentMultipleTabManager requires Web Locks API which fails on iOS Safari/PWA
+  // fallback chain: multi-tab → single-tab → memory
+  let db;
+  try {
+    db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  } catch(e1) {
+    try {
+      db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() }) });
+    } catch(e2) {
+      db = initializeFirestore(app, { localCache: memoryLocalCache() });
+    }
+  }
   const provider = new GoogleAuthProvider();
 
   window._fb = { auth, db, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot };
@@ -180,7 +191,12 @@ async function fbLoad(uid) {
     const { db, doc, getDoc } = window._fb;
     const snap = await getDoc(doc(db, 'users', uid));
     if (snap.exists()) return snap.data();
-  } catch(e) { console.error('load error', e); }
+  } catch(e) {
+    console.error('load error', e);
+    if (e.code === 'permission-denied') {
+      alert('⚠️ אין הרשאה לקרוא את הנתונים מ-Firebase.\nיש לעדכן את כללי האבטחה ב-Firebase Console (Firestore → Rules).');
+    }
+  }
   return {};
 }
 

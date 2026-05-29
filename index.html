@@ -240,6 +240,7 @@ function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [rangeState, setRangeState] = useState({});
   const [sinaiOpen, setSinaiOpen] = useState({});
+  const [sinaiOpenedCard, setSinaiOpenedCard] = useState({});
   const [importMsg, setImportMsg] = useState(null);
   const importRef = useRef(null);
   const [targetDate, setTargetDate] = useState(null);
@@ -591,7 +592,7 @@ function App() {
                     const isOpen = openCards[t.name];
                     return (
                       <div key={t.name} style={{ background: isComplete ? '#fffbef' : '#fff', border:'1.5px solid ' + (isComplete ? '#c8a010' : '#d8e0f0'), borderRadius:12, overflow:'hidden', boxShadow: isComplete ? '0 2px 8px rgba(200,160,16,0.18)' : '0 2px 8px rgba(30,45,90,0.06)' }}>
-                        <div className="thdr" onClick={() => setOpenCards(o => ({ ...o, [t.name]: !o[t.name] }))}
+                        <div className="thdr" onClick={() => { const closing = openCards[t.name]; setOpenCards(o => ({...o, [t.name]: !o[t.name]})); setSinaiOpenedCard(o => ({...o, [t.name]: false})); if (closing) setSinaiOpen(o => ({...o, [t.name]: false})); }}
                           style={{ padding:'0.8rem 1rem 0.65rem', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', userSelect:'none' }}>
                           <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.05rem', fontWeight:700, color: isComplete ? '#8a6000' : '#1a2340' }}>{t.name}</span>
                           <div style={{ display:'flex', alignItems:'center', gap:'0.35rem', flexWrap:'wrap', justifyContent:'flex-end' }}>
@@ -600,7 +601,24 @@ function App() {
                               <a href={'https://hebrewbooks.org/shas.aspx?mesechta=' + TRACTATE_LINKS[t.name].hb + '&daf=2&format=pdf'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.6rem', textDecoration:'none', color:'#4a67c8', background:'#eef1ff', border:'1px solid #c0ccf0', borderRadius:4, padding:'0.1rem 0.3rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>דף</a>
                               <a href={'https://he.wikisource.org/wiki/' + TRACTATE_LINKS[t.name].ws} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.6rem', textDecoration:'none', color:'#4a67c8', background:'#eef1ff', border:'1px solid #c0ccf0', borderRadius:4, padding:'0.1rem 0.3rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>טקסט</a>
                               {TRACTATE_LINKS[t.name]?.sinaiMapId && (
-                                <button onClick={e => { e.stopPropagation(); setSinaiOpen(o => ({...o, [t.name]: !o[t.name]})); setOpenCards(o => ({...o, [t.name]: true})); }}
+                                <button onClick={e => {
+                                  e.stopPropagation();
+                                  const isCardOpen = openCards[t.name];
+                                  const isSinaiOpen = sinaiOpen[t.name];
+                                  if (!isSinaiOpen) {
+                                    setSinaiOpen(o => ({...o, [t.name]: true}));
+                                    if (!isCardOpen) {
+                                      setOpenCards(o => ({...o, [t.name]: true}));
+                                      setSinaiOpenedCard(o => ({...o, [t.name]: true}));
+                                    }
+                                  } else {
+                                    setSinaiOpen(o => ({...o, [t.name]: false}));
+                                    if (sinaiOpenedCard[t.name]) {
+                                      setOpenCards(o => ({...o, [t.name]: false}));
+                                      setSinaiOpenedCard(o => ({...o, [t.name]: false}));
+                                    }
+                                  }
+                                }}
                                   style={{ fontSize:'0.6rem', color: sinaiOpen[t.name] ? '#fff' : '#b45309', background: sinaiOpen[t.name] ? '#b45309' : '#fef3c7', border:'1px solid #f59e0b', borderRadius:4, padding:'0.1rem 0.3rem', fontFamily:"'Heebo',sans-serif", fontWeight:600, cursor:'pointer' }}>
                                   {sinaiOpen[t.name] ? '▲' : '▼'} סיני
                                 </button>

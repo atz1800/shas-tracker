@@ -72,6 +72,8 @@ body { font-family: 'Heebo', sans-serif; background: #f2f5fc; }
 .amud-letter { font-size:0.55rem; color:#8899bb; line-height:1; }
 .amud-cell.learned .daf-num { color:#2e4080; }
 .amud-cell.learned .amud-letter { color:#4a67c8; }
+.amud-cell.review-mode { border-color:#a78bfa !important; background:#f5f3ff !important; }
+.amud-cell.review-mode:hover { border-color:#7c3aed !important; background:#ede9fe !important; }
 .thdr:hover { background:#f5f7ff; }
 input:focus, textarea:focus { outline:none; }
 ::-webkit-scrollbar { width:5px; }
@@ -241,6 +243,10 @@ function App() {
   const [rangeState, setRangeState] = useState({});
   const [sinaiOpen, setSinaiOpen] = useState({});
   const [sinaiOpenedCard, setSinaiOpenedCard] = useState({});
+  const [reviews, setReviews] = useState({});
+  const [reviewsMode, setReviewsMode] = useState({});
+  const reviewsRef = useRef({});
+  useEffect(() => { reviewsRef.current = reviews; }, [reviews]);
   const [backupMsg, setBackupMsg] = useState(null);
   const [targetDate, setTargetDate] = useState(null);
   const [targetInput, setTargetInput] = useState('');
@@ -254,6 +260,7 @@ function App() {
     const uid = user.uid;
     const flushLearned = () => {
       fbSave(uid, 'shas-learned', learnedRef.current);
+      fbSave(uid, 'shas-reviews', reviewsRef.current);
     };
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') flushLearned();
@@ -289,6 +296,7 @@ function App() {
         const data = await fbLoad(u.uid);
         try { setLearned(data['shas-learned'] ? JSON.parse(data['shas-learned']) : {}); } catch(e) { setLearned({}); }
         try { setJournal(data['shas-journal'] ? JSON.parse(data['shas-journal']) : []); } catch(e) { setJournal([]); }
+        try { setReviews(data['shas-reviews'] ? JSON.parse(data['shas-reviews']) : {}); } catch(e) { setReviews({}); }
         if (data['shas-target']) {
           const raw = data['shas-target'];
           setTargetDate(raw); setTargetInput(raw);
@@ -315,7 +323,7 @@ function App() {
       }
     });
   }
-  function signOutUser() { const { auth, signOut } = window._fb; signOut(auth); setLearned({}); setJournal([]); setTargetDate(null); setTargetInput(''); setAgeInput(''); setBirthInput(''); document.title = 'מעקב שס'; }
+  function signOutUser() { const { auth, signOut } = window._fb; signOut(auth); setLearned({}); setJournal([]); setReviews({}); setReviewsMode({}); setTargetDate(null); setTargetInput(''); setAgeInput(''); setBirthInput(''); document.title = 'מעקב שס'; }
 
   function toggleAmud(tractate, daf, amud) {
     const k = amudKey(tractate, daf, amud);
@@ -390,10 +398,23 @@ function App() {
     setJournal(nj); if (user) fbSave(user.uid, 'shas-journal', nj); setEditingId(null);
   }
 
+  function toggleReview(tractate, daf, amud) {
+    const k = amudKey(tractate, daf, amud);
+    if (!learnedRef.current[k]) return;
+    const nr = { ...reviewsRef.current };
+    const next = ((nr[k] || 0) % 9) + 1;
+    // 9 → חזרה ל-0 (מחיקה)
+    if (next === 1 && (nr[k] || 0) === 9) { delete nr[k]; } else { nr[k] = next; }
+    reviewsRef.current = nr;
+    setReviews(nr);
+    if (user && navigator.onLine) fbSave(user.uid, 'shas-reviews', nr);
+  }
+
   async function syncToCloud() {
     if (!user) return;
     try {
       await fbSave(user.uid, 'shas-learned', learnedRef.current);
+      await fbSave(user.uid, 'shas-reviews', reviewsRef.current);
       await fbSave(user.uid, 'shas-journal', journal);
       if (targetDate) await fbSave(user.uid, 'shas-target', targetDate);
       setBackupMsg({ ok: true, text: '✓ גובה' });
@@ -626,6 +647,10 @@ function App() {
                                 onClick={e => { e.stopPropagation(); updateRange(t.name, { showRange: !showRange }); }}>
                                 📏 סמן טווח {showRange ? '▲' : '▼'}
                               </button>
+                              {cnt > 0 && <button className="mbtn" style={{ background: reviewsMode[t.name] ? '#7c3aed' : '#eef1ff', color: reviewsMode[t.name] ? '#fff' : '#5b21b6', border:'1.5px solid #a78bfa' }}
+                                onClick={e => { e.stopPropagation(); setReviewsMode(m => ({...m, [t.name]: !m[t.name]})); }}>
+                                🔁 חזרות {reviewsMode[t.name] ? '▲' : '▼'}
+                              </button>}
                               <span style={{ fontSize:'0.68rem', color:'#7a8aaa', marginRight:'auto' }}>{tPct}%  ·  {t.dafim} דפים</span>
                             </div>
                             {showRange && (
@@ -654,8 +679,9 @@ function App() {
                                   const k = amudKey(t.name, daf, amud);
                                   const isL = !!learned[k];
                                   return (
-                                    <div key={k} className={'amud-cell' + (isL ? ' learned' : '') + (flash === k ? ' flash' : '')}
-                                      onClick={() => toggleAmud(t.name, daf, amud)}>
+                                    <div key={k} className={'amud-cell' + (isL ? ' learned' : '') + (flash === k ? ' flash' : '') + (reviewsMode[t.name] && isL ? ' review-mode' : '')}
+                                      onClick={() => reviewsMode[t.name] ? toggleReview(t.name, daf, amud) : toggleAmud(t.name, daf, amud)}>
+                                      {isL && reviews[k] > 0 && <span style={{ position:'absolute', top:2, left:2, background:'#e8c040', color:'#1a2340', fontSize:'0.48rem', fontWeight:900, width:13, height:13, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none', lineHeight:1, fontFamily:'sans-serif' }}>{reviews[k]}</span>}
                                       <span className="daf-num">{HEB[daf]}</span>
                                       <span className="amud-letter">{amud}</span>
                                     </div>

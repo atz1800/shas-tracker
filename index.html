@@ -241,8 +241,7 @@ function App() {
   const [rangeState, setRangeState] = useState({});
   const [sinaiOpen, setSinaiOpen] = useState({});
   const [sinaiOpenedCard, setSinaiOpenedCard] = useState({});
-  const [importMsg, setImportMsg] = useState(null);
-  const importRef = useRef(null);
+  const [backupMsg, setBackupMsg] = useState(null);
   const [targetDate, setTargetDate] = useState(null);
   const [targetInput, setTargetInput] = useState('');
   const [ageInput, setAgeInput] = useState('');
@@ -391,60 +390,17 @@ function App() {
     setJournal(nj); if (user) fbSave(user.uid, 'shas-journal', nj); setEditingId(null);
   }
 
-  function importData(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async ev => {
-      try {
-        const backup = JSON.parse(ev.target.result);
-        const { learned: l, journal: j, target: t } = backup.data || {};
-        if (!l && !j && !t) throw new Error('פורמט לא מוכר');
-        const nl = l || {};
-        const nj = j || [];
-        const nt = t || null;
-        learnedRef.current = nl;
-        setLearned(nl);
-        setJournal(nj);
-        setTargetDate(nt);
-        if (user) {
-          await fbSave(user.uid, 'shas-learned', nl);
-          await fbSave(user.uid, 'shas-journal', nj);
-          if (nt) await fbSave(user.uid, 'shas-target', nt);
-        }
-        setImportMsg({ ok: true, text: 'הנתונים יובאו בהצלחה ✓' });
-      } catch(err) {
-        setImportMsg({ ok: false, text: 'שגיאה בקובץ — ודא שהוא גיבוי תקין' });
-      }
-      setTimeout(() => setImportMsg(null), 3500);
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  }
-
-  function exportData() {
+  async function syncToCloud() {
     if (!user) return;
-    const backup = {
-      exportedAt: new Date().toISOString(),
-      userId: user.uid,
-      displayName: user.displayName || '',
-      data: {
-        learned,
-        journal,
-        target: targetDate
-      }
-    };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json;charset=utf-8' });
-    const safeDate = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `shas-backup-${safeDate}.json`;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    try {
+      await fbSave(user.uid, 'shas-learned', learnedRef.current);
+      await fbSave(user.uid, 'shas-journal', journal);
+      if (targetDate) await fbSave(user.uid, 'shas-target', targetDate);
+      setBackupMsg({ ok: true, text: '✓ גובה' });
+    } catch(e) {
+      setBackupMsg({ ok: false, text: '✗ שגיאה' });
+    }
+    setTimeout(() => setBackupMsg(null), 2500);
   }
 
   const totalLearned = Object.keys(learned).length;
@@ -546,10 +502,7 @@ function App() {
             {!isOnline && <span style={{ fontSize:'0.65rem', background:'#8b2020', color:'#fff', borderRadius:4, padding:'0.15rem 0.4rem', fontWeight:600 }}>אופליין</span>}
             <img src={user.photoURL} style={{ width:22, height:22, borderRadius:'50%', border:'1.5px solid #4a67c8' }} />
             <span style={{ fontSize:'0.7rem', color:'#7a90cc' }}>{user.displayName?.split(' ')[0]}</span>
-            <input ref={importRef} type="file" accept=".json" style={{ display:'none' }} onChange={importData} />
-            {importMsg && <span style={{ fontSize:'0.62rem', fontWeight:600, color: importMsg.ok ? '#1a7a50' : '#8b2020', background: importMsg.ok ? '#e6f9f0' : '#fff0f0', border:'1px solid', borderColor: importMsg.ok ? '#8de0b8' : '#e8b0b0', borderRadius:4, padding:'0.15rem 0.45rem', whiteSpace:'nowrap' }}>{importMsg.text}</span>}
-            <button onClick={exportData} title="גיבוי נתונים" style={{ background:'linear-gradient(135deg,#ffb347,#ff8c00)', border:'1px solid #ffcf80', borderRadius:6, color:'#2d1a00', fontSize:'0.62rem', padding:'0.18rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif", fontWeight:700, boxShadow:'0 1px 4px rgba(255,140,0,0.3)' }}>⬇ גיבוי</button>
-            <button onClick={() => importRef.current?.click()} title="ייבוא נתונים מקובץ גיבוי" style={{ background:'linear-gradient(135deg,#5a9e6f,#2e7d50)', border:'1px solid #8de0b8', borderRadius:6, color:'#fff', fontSize:'0.62rem', padding:'0.18rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif", fontWeight:700, boxShadow:'0 1px 4px rgba(46,125,80,0.3)' }}>⬆ ייבוא</button>
+            <button onClick={syncToCloud} title="גיבוי ענן" style={{ background: backupMsg?.ok ? '#1a7a50' : backupMsg?.ok === false ? '#8b2020' : 'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:6, color: backupMsg ? '#fff' : '#7a90cc', fontSize:'0.62rem', padding:'0.18rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif", fontWeight:600, transition:'all 0.2s' }}>{backupMsg ? backupMsg.text : '☁ גיבוי'}</button>
             <button onClick={signOutUser} style={{ background:'none', border:'1px solid rgba(255,255,255,0.15)', borderRadius:6, color:'#7a90cc', fontSize:'0.65rem', padding:'0.2rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>יציאה</button>
           </div>
         </div>

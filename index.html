@@ -618,7 +618,7 @@ function App() {
             </>) : (
               <div style={{ fontSize:'0.86rem', color:'#7a8aaa', fontStyle:'italic' }}>אז מה היעד שלך? <span style={{ color:'#4a67c8', cursor:'pointer', fontStyle:'normal', fontWeight:600 }} onClick={() => setTab('target')}>הגדר עכשיו ←</span></div>
             )}
-            {(() => { const dy = getTodayDafYomi(); return dy ? <div style={{ fontSize:'0.76rem', color:'#b45309', fontWeight:600, background:'#fffbef', border:'1px solid #f59e0b', borderRadius:6, padding:'0.16rem 0.55rem', whiteSpace:'nowrap' }}>📅 {dy.tractate} {HEB[dy.daf]}</div> : null; })()}
+            {(() => { const dy = getTodayDafYomi(); if (!dy) return null; const lnk = TRACTATE_LINKS[dy.tractate] ? 'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[dy.tractate].sefaria + '.' + dy.daf + 'a?lang=he' : null; return lnk ? <a href={lnk} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.76rem', color:'#b45309', fontWeight:600, background:'#fffbef', border:'1px solid #f59e0b', borderRadius:6, padding:'0.16rem 0.55rem', whiteSpace:'nowrap', textDecoration:'none' }}>📅 {dy.tractate} {HEB[dy.daf]} ↗</a> : null; })()}
           </div>
 
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍  חפש מסכת..."
@@ -643,15 +643,13 @@ function App() {
                     const tPct = Math.round((cnt / totalAm) * 100);
                     const isComplete = cnt === totalAm;
                     const isOpen = openCards[t.name];
-                    const hasNotes = !!(notes[t.name] && notes[t.name].trim());
                     const hasHard = Object.keys(hard).some(k => k.startsWith(t.name + '||'));
                     return (
-                      <div key={t.name} style={{ background: isComplete ? '#fffbef' : '#fff', border:'1.5px solid ' + (isComplete ? '#c8a010' : '#d8e0f0'), borderRadius:12, overflow:'hidden', boxShadow: isComplete ? '0 2px 8px rgba(200,160,16,0.18)' : '0 2px 8px rgba(30,45,90,0.06)' }}>
+                      <div key={t.name} style={{ background: isComplete ? '#fffbef' : '#fff', border:'1.5px solid ' + (isComplete ? '#c8a010' : (isOpen ? '#4a67c8' : '#d8e0f0')), borderRadius:12, overflow:'hidden', boxShadow: isOpen ? '0 4px 20px rgba(74,103,200,0.15)' : isComplete ? '0 2px 8px rgba(200,160,16,0.18)' : '0 2px 8px rgba(30,45,90,0.06)', gridColumn: isOpen ? '1 / -1' : undefined, transition:'box-shadow 0.2s' }}>
                         <div className="thdr" onClick={() => { const closing = openCards[t.name]; setOpenCards(o => ({...o, [t.name]: !o[t.name]})); setSinaiOpenedCard(o => ({...o, [t.name]: false})); if (closing) setSinaiOpen(o => ({...o, [t.name]: false})); }}
                           style={{ padding:'0.8rem 1rem 0.65rem', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', userSelect:'none' }}>
                           <div style={{ display:'flex', alignItems:'center', gap:'0.3rem' }}>
                             <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.05rem', fontWeight:700, color: isComplete ? '#8a6000' : '#1a2340' }}>{t.name}</span>
-                            {hasNotes && <span style={{ fontSize:'0.68rem' }} title="יש הערות">📝</span>}
                             {hasHard && <span style={{ fontSize:'0.62rem' }} title="יש דפים קשים">⭐</span>}
                           </div>
                           <div style={{ display:'flex', alignItems:'center', gap:'0.35rem', flexWrap:'wrap', justifyContent:'flex-end' }}>
@@ -782,16 +780,6 @@ function App() {
                                   );
                                 })
                               )}
-                            </div>
-                            <div style={{ marginTop:'0.7rem', borderTop:'1px solid #eef1f8', paddingTop:'0.65rem' }}>
-                              <div style={{ fontSize:'0.66rem', color:'#7a8aaa', marginBottom:'0.25rem' }}>📝 הערות למסכת</div>
-                              <textarea
-                                value={notes[t.name] || ''}
-                                onChange={e => { const nn = { ...notesRef.current, [t.name]: e.target.value }; notesRef.current = nn; setNotes(nn); }}
-                                onBlur={() => { if (user) fbSave(user.uid, 'shas-notes', notesRef.current); }}
-                                placeholder="חידושים, קשיים, מה שרצית לזכור..."
-                                style={{ width:'100%', minHeight:52, background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:7, color:'#1a2340', fontFamily:"'Heebo',sans-serif", fontSize:'0.82rem', padding:'0.5rem 0.7rem', resize:'vertical', direction:'rtl', lineHeight:1.6 }}
-                              />
                             </div>
                           </div>
                           );

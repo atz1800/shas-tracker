@@ -356,6 +356,8 @@ function App() {
         dataLoadedRef.current = true;
         window._shasDataLoaded = true;
         try { setLearned(data['shas-learned'] ? JSON.parse(data['shas-learned']) : {}); } catch(e) { setLearned({}); }
+        // עותק מקומי טרי בכל טעינה — שכבת שחזור נוספת
+        try { if (data['shas-learned']) localStorage.setItem('shas-learned', data['shas-learned']); } catch(e) {}
         try { setJournal(data['shas-journal'] ? JSON.parse(data['shas-journal']) : []); } catch(e) { setJournal([]); }
         try { setReviews(data['shas-reviews'] ? JSON.parse(data['shas-reviews']) : {}); } catch(e) { setReviews({}); }
         try { const sd = data['shas-streak'] ? JSON.parse(data['shas-streak']) : null; setStreakData(sd); streakRef.current = sd; } catch(e) { setStreakData(null); }

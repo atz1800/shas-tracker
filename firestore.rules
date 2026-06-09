@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, create: if request.auth != null && request.auth.uid == uid;
+      // עדכון מותר — אבל אסור לדרוס נתונים גדולים בריקים (הגנה מאובדן נתונים)
+      allow update: if request.auth != null && request.auth.uid == uid
+        && !wipes('shas-learned') && !wipes('shas-reviews') && !wipes('shas-journal');
+      allow delete: if false;
+
+      // שדה שהיה גדול (מעל 100 תווים) לא יכול להפוך לריק (פחות מ-10 תווים)
+      function wipes(field) {
+        return field in resource.data
+          && resource.data[field] is string
+          && resource.data[field].size() > 100
+          && field in request.resource.data
+          && request.resource.data[field] is string
+          && request.resource.data[field].size() < 10;
+      }
+    }
+  }
+}

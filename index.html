@@ -32,7 +32,7 @@
 <script type="module" id="fb-init">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, persistentMultipleTabManager, memoryLocalCache, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, persistentMultipleTabManager, memoryLocalCache, doc, setDoc, getDoc, getDocFromServer, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBiEfJgr_wyq33GpG5pHo37DXqKnrDYivo",
@@ -59,7 +59,7 @@
   }
   const provider = new GoogleAuthProvider();
 
-  window._fb = { auth, db, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot };
+  window._fb = { auth, db, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, doc, setDoc, getDoc, getDocFromServer, onSnapshot };
 </script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -225,8 +225,9 @@ async function fbSave(uid, key, val) {
 }
 async function fbLoad(uid) {
   try {
-    const { db, doc, getDoc } = window._fb;
-    const snap = await getDoc(doc(db, 'users', uid));
+    // קריאה מהשרת בלבד — מטמון מקומי ריק/ישן עלול להיראות כמו "אין נתונים"
+    const { db, doc, getDocFromServer } = window._fb;
+    const snap = await getDocFromServer(doc(db, 'users', uid));
     if (snap.exists()) return snap.data();
     return {}; // המסמך לא קיים — משתמש חדש
   } catch(e) {
@@ -348,7 +349,7 @@ function App() {
           // טעינה נכשלה — נשארים במצב קריאה בלבד כדי לא לדרוס נתונים בענן
           dataLoadedRef.current = false;
           window._shasDataLoaded = false;
-          alert('⚠️ לא הצלחנו לטעון את הנתונים מהענן.\nבדוק את החיבור לאינטרנט ורענן את הדף.');
+          alert('⚠️ לא הצלחנו לטעון את הנתונים מהענן.\n\nסיבות אפשריות:\n• אין חיבור לאינטרנט\n• VPN או סינון שחוסם את firestore.googleapis.com\n\nנסה לכבות את ה-VPN ולרענן את הדף.\nהנתונים שלך בענן מוגנים — האפליקציה לא תשמור כלום עד שהטעינה תצליח.');
           setLoading(false);
           return;
         }
@@ -958,7 +959,7 @@ function App() {
       </div>
       <div style={{ textAlign:"right", padding:"0.5rem 1.5rem", fontSize:"0.65rem", color:"#aab4cc", display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:"0.3rem" }}>
         <span>נוצר ע"י עמיחי צדוק</span>
-        <span dir="ltr">v8 · {user?.email || ''}</span>
+        <span dir="ltr">v9 · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
       </div>
     </div>
   );

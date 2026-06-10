@@ -1,16 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <radialGradient id="bg" cx="50%" cy="40%" r="60%">
-      <stop offset="0%" stop-color="#2a3f8f"/>
-      <stop offset="100%" stop-color="#0d1530"/>
+    <radialGradient id="bg" cx="45%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#2e50b8"/>
+      <stop offset="100%" stop-color="#070e26"/>
     </radialGradient>
-    <linearGradient id="gold" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#fff0a0"/>
-      <stop offset="40%" stop-color="#e8c840"/>
-      <stop offset="100%" stop-color="#a07010"/>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4060d0" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#4060d0" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%" stop-color="#fff5b0"/>
+      <stop offset="30%" stop-color="#f2cc44"/>
+      <stop offset="75%" stop-color="#c89820"/>
+      <stop offset="100%" stop-color="#8a6008"/>
+    </linearGradient>
+    <linearGradient id="goldBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f0d060" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#a07820" stop-opacity="0.2"/>
     </linearGradient>
   </defs>
-  <rect width="180" height="180" rx="36" fill="url(#bg)"/>
-  <circle cx="90" cy="90" r="74" fill="none" stroke="#c8a820" stroke-width="1.5" opacity="0.4"/>
-  <text x="90" y="122" text-anchor="middle" font-size="105" font-family="Frank Ruhl Libre, David, serif" font-weight="700" fill="url(#gold)">ש</text>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+  <!-- Inner glow -->
+  <rect width="512" height="512" rx="108" fill="url(#glow)"/>
+  <!-- Decorative border -->
+  <rect x="14" y="14" width="484" height="484" rx="96" fill="none" stroke="url(#goldBorder)" stroke-width="2.5"/>
+
+  <!-- Crown — three points above ש -->
+  <g fill="url(#gold)" opacity="0.92">
+    <!-- left point -->
+    <polygon points="168,148 180,108 192,148"/>
+    <!-- center point (tallest) -->
+    <polygon points="242,138 256,88 270,138"/>
+    <!-- right point -->
+    <polygon points="320,148 332,108 344,148"/>
+    <!-- crown base bar -->
+    <rect x="162" y="145" width="188" height="22" rx="6"/>
+  </g>
+
+  <!-- Shin letter -->
+  <text x="256" y="395"
+    text-anchor="middle"
+    font-size="290"
+    font-family="Frank Ruhl Libre, David, serif"
+    font-weight="700"
+    fill="url(#gold)">ש</text>
+
+  <!-- Subtitle -->
+  <text x="256" y="462"
+    text-anchor="middle"
+    font-size="58"
+    font-family="Frank Ruhl Libre, David, serif"
+    font-weight="400"
+    fill="#d4a820"
+    opacity="0.65"
+    letter-spacing="4">הש״ס</text>
 </svg>

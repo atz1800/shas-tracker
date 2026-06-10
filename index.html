@@ -138,7 +138,7 @@ const TRACTATE_LINKS = {
   'שבת':      { hb: 2,  sefaria: 'Shabbat',         ws: 'בבלי_שבת',        sinaiMapId: 2  },
   'עירובין':  { hb: 3,  sefaria: 'Eruvin',           ws: 'בבלי_עירובין',    sinaiMapId: 3  },
   'פסחים':    { hb: 4,  sefaria: 'Pesachim',         ws: 'בבלי_פסחים',      sinaiMapId: 4  },
-  'שקלים':    { hb: 5,  sefaria: 'Shekalim',         ws: 'בבלי_שקלים',      sinaiMapId: 5  },
+  'שקלים':    { hb: 5,  sefaria: 'Jerusalem_Talmud_Shekalim', noDaf: true, ws: 'בבלי_שקלים', sinaiMapId: 5  },
   'יומא':     { hb: 6,  sefaria: 'Yoma',             ws: 'בבלי_יומא',       sinaiMapId: 6  },
   'סוכה':     { hb: 7,  sefaria: 'Sukkah',           ws: 'בבלי_סוכה',       sinaiMapId: 7  },
   'ביצה':     { hb: 8,  sefaria: 'Beitzah',          ws: 'בבלי_ביצה'                       },
@@ -666,7 +666,7 @@ function App() {
             </>) : (
               <div style={{ fontSize:'0.86rem', color:'#7a8aaa', fontStyle:'italic' }}>אז מה היעד שלך? <span style={{ color:'#4a67c8', cursor:'pointer', fontStyle:'normal', fontWeight:600 }} onClick={() => setTab('target')}>הגדר עכשיו ←</span></div>
             )}
-            {(() => { const dy = getTodayDafYomi(); if (!dy) return null; const lnk = TRACTATE_LINKS[dy.tractate] ? 'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[dy.tractate].sefaria + '.' + dy.daf + 'a' : null; return lnk ? <a href={lnk} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.76rem', color:'#b45309', fontWeight:600, background:'#fffbef', border:'1px solid #f59e0b', borderRadius:6, padding:'0.16rem 0.55rem', whiteSpace:'nowrap', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'0.3rem' }}><Ic d={ICONS.cal} size={13} /> {dy.tractate} {HEB[dy.daf]} ↗</a> : null; })()}
+            {(() => { const dy = getTodayDafYomi(); if (!dy) return null; const tl = TRACTATE_LINKS[dy.tractate]; const lnk = tl ? 'https://www.sefaria.org.il/Steinsaltz_on_' + tl.sefaria + (tl.noDaf ? '' : '.' + dy.daf + 'a') : null; return lnk ? <a href={lnk} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.76rem', color:'#b45309', fontWeight:600, background:'#fffbef', border:'1px solid #f59e0b', borderRadius:6, padding:'0.16rem 0.55rem', whiteSpace:'nowrap', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'0.3rem' }}><Ic d={ICONS.cal} size={13} /> {dy.tractate} {HEB[dy.daf]} ↗</a> : null; })()}
           </div>
 
           <div style={{ position:'relative', marginBottom:'1.2rem' }}>
@@ -997,7 +997,7 @@ function App() {
             <Ic d={ICONS.mail} size={11} /> צור קשר
           </a>
         </span>
-        <span dir="ltr">v12 · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
+        <span dir="ltr">v13 · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
       </div>
     </div>
   );

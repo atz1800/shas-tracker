@@ -1,7 +1,7 @@
 {
-  "name": "מעקב הש\"ס",
-  "short_name": "מעקב הש\"ס",
-  "description": "עקוב אחר הלמידה שלך בדרך לסיום הש\"ס הבבלי",
+  "name": "מעקב הש״ס",
+  "short_name": "מעקב הש״ס",
+  "description": "עקוב אחר הלמידה שלך בדרך לסיום הש״ס הבבלי",
   "id": "https://atz1800.github.io/shas-tracker/",
   "start_url": "https://atz1800.github.io/shas-tracker/",
   "scope": "https://atz1800.github.io/shas-tracker/",

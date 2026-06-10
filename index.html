@@ -618,7 +618,7 @@ function App() {
             </>) : (
               <div style={{ fontSize:'0.86rem', color:'#7a8aaa', fontStyle:'italic' }}>אז מה היעד שלך? <span style={{ color:'#4a67c8', cursor:'pointer', fontStyle:'normal', fontWeight:600 }} onClick={() => setTab('target')}>הגדר עכשיו ←</span></div>
             )}
-            {(() => { const dy = getTodayDafYomi(); if (!dy) return null; const lnk = TRACTATE_LINKS[dy.tractate] ? 'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[dy.tractate].sefaria + '.' + dy.daf + 'a?lang=he' : null; return lnk ? <a href={lnk} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.76rem', color:'#b45309', fontWeight:600, background:'#fffbef', border:'1px solid #f59e0b', borderRadius:6, padding:'0.16rem 0.55rem', whiteSpace:'nowrap', textDecoration:'none' }}>📅 {dy.tractate} {HEB[dy.daf]} ↗</a> : null; })()}
+            {(() => { const dy = getTodayDafYomi(); if (!dy) return null; const lnk = TRACTATE_LINKS[dy.tractate] ? 'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[dy.tractate].sefaria + '.' + dy.daf + 'a' : null; return lnk ? <a href={lnk} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.76rem', color:'#b45309', fontWeight:600, background:'#fffbef', border:'1px solid #f59e0b', borderRadius:6, padding:'0.16rem 0.55rem', whiteSpace:'nowrap', textDecoration:'none' }}>📅 {dy.tractate} {HEB[dy.daf]} ↗</a> : null; })()}
           </div>
 
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍  חפש מסכת..."
@@ -654,7 +654,7 @@ function App() {
                           </div>
                           <div style={{ display:'flex', alignItems:'center', gap:'0.35rem', flexWrap:'wrap', justifyContent:'flex-end' }}>
                             {TRACTATE_LINKS[t.name] && (<>
-                              <a href={'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[t.name].sefaria + '?lang=he'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.6rem', textDecoration:'none', color:'#4a67c8', background:'#eef1ff', border:'1px solid #c0ccf0', borderRadius:4, padding:'0.1rem 0.3rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>שטיינ׳</a>
+                              <a href={'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[t.name].sefaria} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.6rem', textDecoration:'none', color:'#4a67c8', background:'#eef1ff', border:'1px solid #c0ccf0', borderRadius:4, padding:'0.1rem 0.3rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>שטיינ׳</a>
                               <a href={'https://hebrewbooks.org/shas.aspx?mesechta=' + TRACTATE_LINKS[t.name].hb + '&daf=2&format=pdf'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.6rem', textDecoration:'none', color:'#4a67c8', background:'#eef1ff', border:'1px solid #c0ccf0', borderRadius:4, padding:'0.1rem 0.3rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>דף</a>
                               <a href={'https://he.wikisource.org/wiki/' + TRACTATE_LINKS[t.name].ws} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.6rem', textDecoration:'none', color:'#4a67c8', background:'#eef1ff', border:'1px solid #c0ccf0', borderRadius:4, padding:'0.1rem 0.3rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>טקסט</a>
                               {TRACTATE_LINKS[t.name]?.sinaiMapId && (

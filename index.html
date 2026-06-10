@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="מעקב ש״ס">
+<meta name="apple-mobile-web-app-title" content="מעקב הש״ס">
 <meta name="theme-color" content="#1a2d6e">
-<title>מעקב ש"ס</title>
-<meta property="og:title" content="מעקב ש״ס">
+<title>מעקב הש"ס</title>
+<meta property="og:title" content="מעקב הש״ס">
 <meta property="og:description" content="עקוב אחר הלמידה שלך בדרך לסיום הש״ס הבבלי">
 <meta property="og:image" content="https://atz1800.github.io/shas-tracker/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -16,7 +16,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://atz1800.github.io/shas-tracker/">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="מעקב ש״ס">
+<meta name="twitter:title" content="מעקב הש״ס">
 <meta name="twitter:description" content="עקוב אחר הלמידה שלך בדרך לסיום הש״ס הבבלי">
 <meta name="twitter:image" content="https://atz1800.github.io/shas-tracker/og-image.png">
 
@@ -575,7 +575,7 @@ function App() {
   if (!user) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', flexDirection:'column', background:'linear-gradient(160deg,#0d1530 0%,#1a2d6e 50%,#2a40a0 100%)', padding:'2rem', textAlign:'center' }}>
       <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'5rem', color:'#e8d870', fontWeight:900, lineHeight:1, marginBottom:'1rem', textShadow:'0 0 40px rgba(232,216,112,0.3)' }}>ש</div>
-      <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'2rem', color:'#e8f0ff', fontWeight:700, marginBottom:'0.6rem' }}>מעקב ש"ס</div>
+      <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'2rem', color:'#e8f0ff', fontWeight:700, marginBottom:'0.6rem' }}>מעקב הש"ס</div>
       <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.15rem', color:'#c8d8ff', marginBottom:'0.4rem', lineHeight:1.7 }}>
         ברוך הבא לדף המעקב האישי שלך<br/>בדרכך לסיום הש"ס (בבלי)
       </div>
@@ -595,7 +595,7 @@ function App() {
       <div style={{ background:'linear-gradient(135deg,#1a2d6e 0%,#2a40a0 100%)', boxShadow:'0 3px 20px rgba(20,40,100,0.3)', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ padding:'0.9rem 1.2rem 0.5rem', maxWidth:1080, margin:'0 auto', display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:'0.6rem' }}>
           <div>
-            <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:900, color:'#e8f0ff', lineHeight:1.15 }}>מעקב ש"ס · {user?.displayName || ''}</div>
+            <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:900, color:'#e8f0ff', lineHeight:1.15 }}>מעקב הש"ס · {user?.displayName || ''}</div>
             <div style={{ fontSize:'0.72rem', color:'#e8c040', fontWeight:600, marginTop:'0.2rem' }}>בעזרת ה׳ — תתחזק, אתה תצליח ✨</div>
           </div>          <div style={{ display:'flex', gap:'1.2rem', alignItems:'center', flexWrap:'wrap' }}>
             <div style={{ textAlign:'center' }}>
@@ -997,7 +997,7 @@ function App() {
             <Ic d={ICONS.mail} size={11} /> צור קשר
           </a>
         </span>
-        <span dir="ltr">v13 · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
+        <span dir="ltr">v14 · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
       </div>
     </div>
   );

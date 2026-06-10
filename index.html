@@ -32,7 +32,7 @@
 <script type="module" id="fb-init">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, persistentMultipleTabManager, memoryLocalCache, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, persistentMultipleTabManager, memoryLocalCache, doc, setDoc, getDoc, getDocFromServer, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBiEfJgr_wyq33GpG5pHo37DXqKnrDYivo",
@@ -59,7 +59,7 @@
   }
   const provider = new GoogleAuthProvider();
 
-  window._fb = { auth, db, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, doc, setDoc, getDoc, onSnapshot };
+  window._fb = { auth, db, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, doc, setDoc, getDoc, getDocFromServer, onSnapshot };
 </script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -215,6 +215,8 @@ function getTodayDafYomi() {
 }
 
 async function fbSave(uid, key, val) {
+  // מגן גלובלי: אסור לכתוב לענן לפני שטעינת הנתונים הצליחה
+  if (!window._shasDataLoaded) { console.warn('fbSave blocked — data not loaded yet:', key); return; }
   try {
     const { db, doc, setDoc } = window._fb;
     const stored = typeof val === 'string' ? val : JSON.stringify(val);
@@ -223,16 +225,18 @@ async function fbSave(uid, key, val) {
 }
 async function fbLoad(uid) {
   try {
-    const { db, doc, getDoc } = window._fb;
-    const snap = await getDoc(doc(db, 'users', uid));
+    // קריאה מהשרת בלבד — מטמון מקומי ריק/ישן עלול להיראות כמו "אין נתונים"
+    const { db, doc, getDocFromServer } = window._fb;
+    const snap = await getDocFromServer(doc(db, 'users', uid));
     if (snap.exists()) return snap.data();
+    return {}; // המסמך לא קיים — משתמש חדש
   } catch(e) {
     console.error('load error', e);
     if (e.code === 'permission-denied') {
       alert('⚠️ אין הרשאה לקרוא את הנתונים מ-Firebase.\nיש לעדכן את כללי האבטחה ב-Firebase Console (Firestore → Rules).');
     }
   }
-  return {};
+  return null; // טעינה נכשלה — אסור לדרוס את הענן
 }
 
 // ממיר תאריך לועזי לתאריך עברי מילולי
@@ -309,11 +313,14 @@ function App() {
   const [birthInput, setBirthInput] = useState('');
   const learnedRef = useRef({});
   useEffect(() => { learnedRef.current = learned; }, [learned]);
+  // מגן מפני דריסת נתוני ענן בנתונים ריקים — שמירה אוטומטית רק אחרי שהטעינה הצליחה
+  const dataLoadedRef = useRef(false);
 
   useEffect(() => {
     if (!user) return;
     const uid = user.uid;
     const flushLearned = () => {
+      if (!dataLoadedRef.current) return;
       fbSave(uid, 'shas-learned', learnedRef.current);
       fbSave(uid, 'shas-reviews', reviewsRef.current);
       fbSave(uid, 'shas-hard', hardRef.current);
@@ -332,7 +339,7 @@ function App() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      if (user) fbSave(user.uid, 'shas-learned', learnedRef.current);
+      if (user && dataLoadedRef.current) fbSave(user.uid, 'shas-learned', learnedRef.current);
     };
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
@@ -350,7 +357,19 @@ function App() {
       setUser(u);
       if (u) {
         const data = await fbLoad(u.uid);
+        if (data === null) {
+          // טעינה נכשלה — נשארים במצב קריאה בלבד כדי לא לדרוס נתונים בענן
+          dataLoadedRef.current = false;
+          window._shasDataLoaded = false;
+          alert('⚠️ לא הצלחנו לטעון את הנתונים מהענן.\n\nסיבות אפשריות:\n• אין חיבור לאינטרנט\n• VPN או סינון שחוסם את firestore.googleapis.com\n\nנסה לכבות את ה-VPN ולרענן את הדף.\nהנתונים שלך בענן מוגנים — האפליקציה לא תשמור כלום עד שהטעינה תצליח.');
+          setLoading(false);
+          return;
+        }
+        dataLoadedRef.current = true;
+        window._shasDataLoaded = true;
         try { setLearned(data['shas-learned'] ? JSON.parse(data['shas-learned']) : {}); } catch(e) { setLearned({}); }
+        // עותק מקומי טרי בכל טעינה — שכבת שחזור נוספת
+        try { if (data['shas-learned']) localStorage.setItem('shas-learned', data['shas-learned']); } catch(e) {}
         try { setJournal(data['shas-journal'] ? JSON.parse(data['shas-journal']) : []); } catch(e) { setJournal([]); }
         try { setReviews(data['shas-reviews'] ? JSON.parse(data['shas-reviews']) : {}); } catch(e) { setReviews({}); }
         try { const sd = data['shas-streak'] ? JSON.parse(data['shas-streak']) : null; setStreakData(sd); streakRef.current = sd; } catch(e) { setStreakData(null); }
@@ -382,7 +401,7 @@ function App() {
       }
     });
   }
-  function signOutUser() { const { auth, signOut } = window._fb; signOut(auth); setLearned({}); setJournal([]); setReviews({}); setReviewsMode({}); setStreakData(null); setNotes({}); setHard({}); setHardMode({}); setTargetDate(null); setTargetInput(''); setAgeInput(''); setBirthInput(''); document.title = 'מעקב שס'; }
+  function signOutUser() { const { auth, signOut } = window._fb; signOut(auth); window._shasDataLoaded = false; dataLoadedRef.current = false; setLearned({}); setJournal([]); setReviews({}); setReviewsMode({}); setStreakData(null); setNotes({}); setHard({}); setHardMode({}); setTargetDate(null); setTargetInput(''); setAgeInput(''); setBirthInput(''); document.title = 'מעקב שס'; }
 
   function toggleAmud(tractate, daf, amud) {
     const k = amudKey(tractate, daf, amud);
@@ -405,7 +424,7 @@ function App() {
     learnedRef.current = nl;
     setLearned(nl);
     try { localStorage.setItem('shas-learned', JSON.stringify(nl)); } catch(e) {}
-    if (user && navigator.onLine) fbSave(user.uid, 'shas-learned', nl);
+    if (user && navigator.onLine && dataLoadedRef.current) fbSave(user.uid, 'shas-learned', nl);
   }
 
   function markAll(tractate, dafim) {
@@ -495,6 +514,7 @@ function App() {
 
   async function syncToCloud() {
     if (!user) return;
+    if (!dataLoadedRef.current) { setBackupMsg({ ok: false, text: '✗ הנתונים לא נטענו' }); setTimeout(() => setBackupMsg(null), 2500); return; }
     try {
       await fbSave(user.uid, 'shas-learned', learnedRef.current);
       await fbSave(user.uid, 'shas-reviews', reviewsRef.current);
@@ -954,8 +974,9 @@ function App() {
           </div>
         )}
       </div>
-      <div style={{ textAlign:"right", padding:"0.5rem 1.5rem", fontSize:"0.65rem", color:"#aab4cc" }}>
-        נוצר ע"י עמיחי צדוק
+      <div style={{ textAlign:"right", padding:"0.5rem 1.5rem", fontSize:"0.65rem", color:"#aab4cc", display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:"0.3rem" }}>
+        <span>נוצר ע"י עמיחי צדוק</span>
+        <span dir="ltr">v10 · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
       </div>
     </div>
   );
@@ -966,7 +987,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/shas-tracker/sw.js', { scope: '/shas-tracker/' });
+      navigator.serviceWorker.register('/shas-tracker/sw.js', { scope: '/shas-tracker/' })
+        .then(reg => reg.update());
+      // כשגרסה חדשה משתלטת — רענון אוטומטי (פעם אחת, בלי לולאה)
+      let refreshed = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshed) return;
+        refreshed = true;
+        window.location.reload();
+      });
     });
   }
 </script>

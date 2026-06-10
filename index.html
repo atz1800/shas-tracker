@@ -89,6 +89,11 @@ input:focus, textarea:focus { outline:none; }
 .entry-btn.del:hover { background:#fff0f0; color:#8b2020; }
 .mbtn { padding:0.3rem 0.75rem; border-radius:99px; cursor:pointer; font-family:'Heebo',sans-serif; font-size:0.72rem; font-weight:500; transition:all 0.15s; border: none; display:inline-flex; align-items:center; gap:0.3rem; }
 .tab-btn { padding:0.5rem 1.1rem; border:none; background:transparent; cursor:pointer; font-family:'Heebo',sans-serif; font-size:0.88rem; font-weight:500; border-bottom:2px solid transparent; transition:all 0.15s; }
+@media (max-width: 500px) {
+  .tab-label { display: none; }
+  .tab-btn { padding: 0.5rem 0.6rem; }
+  .top-actions span, .top-actions button { font-size: 0.58rem !important; padding: 0.15rem 0.35rem !important; }
+}
 </style>
 </head>
 <body>
@@ -641,11 +646,11 @@ function App() {
           {[['shas','מעקב למידה','book'],['journal','יומן','pen'],['target','יעד','target']].map(([key, label, ic]) => (
             <button key={key} className="tab-btn" onClick={() => setTab(key)}
               style={{ color: tab===key ? '#b8ceff' : '#8499cf', borderBottomColor: tab===key ? '#b8ceff' : 'transparent', fontWeight: tab===key ? 700 : 400, display:'inline-flex', alignItems:'center', gap:'0.4rem' }}>
-              <Ic d={ICONS[ic]} />{label}
+              <Ic d={ICONS[ic]} /><span className="tab-label">{label}</span>
             </button>
           ))}
           </div>
-          <div style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
+          <div className="top-actions" style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
             {!isOnline && <span style={{ fontSize:'0.65rem', background:'#8b2020', color:'#fff', borderRadius:4, padding:'0.15rem 0.4rem', fontWeight:600 }}>אופליין</span>}
             <img src={user.photoURL} style={{ width:22, height:22, borderRadius:'50%', border:'1.5px solid #4a67c8' }} />
             <span style={{ fontSize:'0.7rem', color:'#7a90cc' }}>{user.displayName?.split(' ')[0]}</span>
@@ -997,7 +1002,7 @@ function App() {
             <Ic d={ICONS.mail} size={11} /> צור קשר
           </a>
         </span>
-        <span dir="ltr">v14 · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
+        <span dir="ltr">v15 · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
       </div>
     </div>
   );

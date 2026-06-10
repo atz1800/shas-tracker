@@ -1,4 +1,4 @@
-const CACHE = 'shas-v14';
+const CACHE = 'shas-v15';
 const ASSETS = ['./', './index.html', './icon.svg', './manifest.json'];
 
 self.addEventListener('install', e => {

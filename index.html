@@ -245,6 +245,19 @@ async function fbLoad(uid) {
   return null; // טעינה נכשלה — אסור לדרוס את הענן
 }
 
+// מיזוג union — מוסיף מפתחות מהשרת שאין מקומית, ולוקח את הספירה הגבוהה (חזרות).
+// לעולם לא מוחק סימון — כך שסימון שנעשה במכשיר אחר לא נעלם. מחזיר null אם אין שינוי.
+function mergeInto(local, server) {
+  if (!server || typeof server !== 'object') return null;
+  let changed = false;
+  const out = { ...local };
+  for (const k in server) {
+    if (!(k in out)) { out[k] = server[k]; changed = true; }
+    else if (typeof server[k] === 'number' && typeof out[k] === 'number' && server[k] > out[k]) { out[k] = server[k]; changed = true; }
+  }
+  return changed ? out : null;
+}
+
 // תאריך עברי בגימטריה לתצוגה — כ״ט אדר א׳ תשפ״ו
 function fmtHebDate(o) {
   try {
@@ -301,6 +314,7 @@ function App() {
   const [editText, setEditText] = useState('');
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [offlineView, setOfflineView] = useState(false); // מצב צפייה-בלבד מ-localStorage כשאין רשת
   const [rangeState, setRangeState] = useState({});
   const [sinaiOpen, setSinaiOpen] = useState({});
   const [sinaiOpenedCard, setSinaiOpenedCard] = useState({});
@@ -374,42 +388,79 @@ function App() {
     return onAuthStateChanged(auth, async u => {
       setUser(u);
       if (u) {
+        // מאכלס את כל ה-state מתוך אובייקט נתונים (מהשרת או מהעותק המקומי)
+        const hydrate = (data) => {
+          try { setLearned(data['shas-learned'] ? JSON.parse(data['shas-learned']) : {}); } catch(e) { setLearned({}); }
+          try { setJournal(data['shas-journal'] ? JSON.parse(data['shas-journal']) : []); } catch(e) { setJournal([]); }
+          try { setReviews(data['shas-reviews'] ? JSON.parse(data['shas-reviews']) : {}); } catch(e) { setReviews({}); }
+          try { const sd = data['shas-streak'] ? JSON.parse(data['shas-streak']) : null; setStreakData(sd); streakRef.current = sd; } catch(e) { setStreakData(null); }
+          try { setNotes(data['shas-notes'] ? JSON.parse(data['shas-notes']) : {}); } catch(e) { setNotes({}); }
+          try { const hd = data['shas-hard'] ? JSON.parse(data['shas-hard']) : {}; setHard(hd); hardRef.current = hd; } catch(e) { setHard({}); }
+          if (data['shas-target']) {
+            const raw = data['shas-target'];
+            setTargetDate(raw); setTargetInput(raw);
+            try {
+              const o = JSON.parse(raw);
+              setAgeInput(String(o.age));
+              const b = o.birth || '';
+              setBirthInput(b.length === 7 ? b + '-01' : b);
+            } catch(e) {}
+          }
+        };
         const data = await fbLoad(u.uid);
         if (data === null) {
-          // טעינה נכשלה — נשארים במצב קריאה בלבד כדי לא לדרוס נתונים בענן
+          // טעינה מהשרת נכשלה (אין רשת/חסימה) — נציג עותק מקומי במצב צפייה-בלבד (בלי לכתוב לענן)
           dataLoadedRef.current = false;
           window._shasDataLoaded = false;
-          alert('⚠️ לא הצלחנו לטעון את הנתונים מהענן.\n\nסיבות אפשריות:\n• אין חיבור לאינטרנט\n• VPN או סינון שחוסם את firestore.googleapis.com\n\nנסה לכבות את ה-VPN ולרענן את הדף.\nהנתונים שלך בענן מוגנים — האפליקציה לא תשמור כלום עד שהטעינה תצליח.');
+          let cached = null;
+          try { cached = JSON.parse(localStorage.getItem('shas-fulldata') || 'null'); } catch(e) {}
+          if (cached) {
+            hydrate(cached);
+            setOfflineView(true);
+          } else {
+            alert('⚠️ לא הצלחנו לטעון את הנתונים מהענן, ואין עותק מקומי במכשיר הזה.\n\nבדוק חיבור לאינטרנט (או VPN/סינון שחוסם את firestore.googleapis.com) ורענן את הדף.');
+          }
+          document.title = 'מעקב הש״ס · ' + (u.displayName || '');
           setLoading(false);
           return;
         }
         dataLoadedRef.current = true;
         window._shasDataLoaded = true;
-        try { setLearned(data['shas-learned'] ? JSON.parse(data['shas-learned']) : {}); } catch(e) { setLearned({}); }
-        // עותק מקומי טרי בכל טעינה — שכבת שחזור נוספת
+        setOfflineView(false);
+        hydrate(data);
+        // עותקי שחזור מקומיים: learned בנפרד + כל הנתונים (לצפייה אופליין)
         try { if (data['shas-learned']) localStorage.setItem('shas-learned', data['shas-learned']); } catch(e) {}
-        try { setJournal(data['shas-journal'] ? JSON.parse(data['shas-journal']) : []); } catch(e) { setJournal([]); }
-        try { setReviews(data['shas-reviews'] ? JSON.parse(data['shas-reviews']) : {}); } catch(e) { setReviews({}); }
-        try { const sd = data['shas-streak'] ? JSON.parse(data['shas-streak']) : null; setStreakData(sd); streakRef.current = sd; } catch(e) { setStreakData(null); }
-        try { setNotes(data['shas-notes'] ? JSON.parse(data['shas-notes']) : {}); } catch(e) { setNotes({}); }
-        try { const hd = data['shas-hard'] ? JSON.parse(data['shas-hard']) : {}; setHard(hd); hardRef.current = hd; } catch(e) { setHard({}); }
-        if (data['shas-target']) {
-          const raw = data['shas-target'];
-          setTargetDate(raw); setTargetInput(raw);
-          try {
-            const o = JSON.parse(raw);
-            setAgeInput(String(o.age));
-            // תמיכה בפורמט ישן YYYY-MM וחדש YYYY-MM-DD
-            const b = o.birth || '';
-            // תמיכה בפורמט YYYY-MM (ישן) ו-YYYY-MM-DD (חדש)
-            setBirthInput(b.length === 7 ? b + '-01' : b);
-          } catch(e) {}
-        }
+        try { localStorage.setItem('shas-fulldata', JSON.stringify(data)); } catch(e) {}
         document.title = 'מעקב הש״ס · ' + (u.displayName || '');
       }
       setLoading(false);
     });
   }, []);
+
+  // סנכרון חי בין מכשירים — ממזג (union) כל שינוי שמאושר בשרת. מתעלם מכתיבות שלנו ומהמטמון.
+  // מיזוג union לעולם לא מוחק סימון, כך שמכשיר אחד לא יכול לדרוס את מה שהשני סימן.
+  useEffect(() => {
+    if (!user) return;
+    const { db, doc, onSnapshot } = window._fb;
+    const unsub = onSnapshot(doc(db, 'users', user.uid), snap => {
+      if (!snap.exists() || snap.metadata.hasPendingWrites || snap.metadata.fromCache) return;
+      if (!window._shasDataLoaded) return; // רק אחרי שהטעינה הראשונית הצליחה
+      const d = snap.data();
+      try {
+        const m = mergeInto(learnedRef.current, d['shas-learned'] ? JSON.parse(d['shas-learned']) : null);
+        if (m) { learnedRef.current = m; setLearned(m); try { localStorage.setItem('shas-learned', JSON.stringify(m)); } catch(e){} }
+      } catch(e){}
+      try {
+        const m = mergeInto(reviewsRef.current, d['shas-reviews'] ? JSON.parse(d['shas-reviews']) : null);
+        if (m) { reviewsRef.current = m; setReviews(m); }
+      } catch(e){}
+      try {
+        const m = mergeInto(hardRef.current, d['shas-hard'] ? JSON.parse(d['shas-hard']) : null);
+        if (m) { hardRef.current = m; setHard(m); }
+      } catch(e){}
+    }, err => { console.warn('snapshot listener error', err); });
+    return () => unsub();
+  }, [user]);
 
   function signIn() {
     const { auth, provider, signInWithPopup, signInWithRedirect } = window._fb;
@@ -656,6 +707,12 @@ function App() {
           </div>
         </div>
       </div>
+
+      {offlineView && (
+        <div style={{ background:'#fef3c7', borderBottom:'1px solid #f59e0b', color:'#92400e', fontSize:'0.82rem', textAlign:'center', padding:'0.55rem 1rem', fontWeight:600 }}>
+          ⚠️ מצב לא־מקוון — צפייה בלבד. שינויים לא יישמרו עד שתחזור הרשת · <span onClick={() => window.location.reload()} style={{ textDecoration:'underline', cursor:'pointer' }}>נסה שוב</span>
+        </div>
+      )}
 
       {/* BODY */}
       <div style={{ maxWidth:1080, margin:'0 auto', padding:'1.2rem 1rem' }}>

@@ -351,7 +351,13 @@ function App() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      if (user && dataLoadedRef.current) fbSave(user.uid, 'shas-learned', learnedRef.current);
+      if (user && dataLoadedRef.current) {
+        fbSave(user.uid, 'shas-learned', learnedRef.current);
+        fbSave(user.uid, 'shas-reviews', reviewsRef.current);
+        fbSave(user.uid, 'shas-hard', hardRef.current);
+        if (streakRef.current) fbSave(user.uid, 'shas-streak', streakRef.current);
+        if (Object.keys(notesRef.current).length) fbSave(user.uid, 'shas-notes', notesRef.current);
+      }
     };
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
@@ -474,14 +480,20 @@ function App() {
     if (user) fbSave(user.uid, 'shas-learned', nl);
   }
 
-  function countT(name, dafim) {
-    let c = 0;
-    for (let d = 2; d <= dafim + 1; d++) {
-      if (learned[amudKey(name,d,'א')]) c++;
-      if (learned[amudKey(name,d,'ב')]) c++;
+  // ספירת עמודים שנלמדו לכל מסכת — מחושב פעם אחת בכל שינוי ב-learned (במקום בכל רינדור)
+  const counts = useMemo(() => {
+    const m = {};
+    for (const sed of SHAS) for (const t of sed.tractates) {
+      let c = 0;
+      for (let d = 2; d <= t.dafim + 1; d++) {
+        if (learned[amudKey(t.name,d,'א')]) c++;
+        if (learned[amudKey(t.name,d,'ב')]) c++;
+      }
+      m[t.name] = c;
     }
-    return c;
-  }
+    return m;
+  }, [learned]);
+  const countT = (name) => counts[name] || 0;
 
   function addEntry() {
     if (!newEntry.trim()) return;

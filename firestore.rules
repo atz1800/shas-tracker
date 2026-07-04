@@ -5,7 +5,8 @@ service cloud.firestore {
       allow read, create: if request.auth != null && request.auth.uid == uid;
       // עדכון מותר — אבל אסור לדרוס נתונים גדולים בריקים (הגנה מאובדן נתונים)
       allow update: if request.auth != null && request.auth.uid == uid
-        && !wipes('shas-learned') && !wipes('shas-reviews') && !wipes('shas-journal');
+        && !wipes('shas-learned') && !wipes('shas-reviews') && !wipes('shas-journal')
+        && !wipes('shas-hard') && !wipes('shas-notes');
       allow delete: if false;
 
       // שדה שהיה גדול (מעל 100 תווים) לא יכול להפוך לריק (פחות מ-10 תווים)

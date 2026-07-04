@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="מעקב הש״ס">
@@ -100,7 +100,8 @@ input:focus, textarea:focus { outline:none; }
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useMemo } = React;
+const APP_VERSION = 'v18'; // חובה לעדכן יחד עם CACHE ב-sw.js
 
 const SHAS = [
   { seder: 'סדר זרעים', tractates: [{ name: 'ברכות', dafim: 63 }]},
@@ -242,16 +243,6 @@ async function fbLoad(uid) {
     }
   }
   return null; // טעינה נכשלה — אסור לדרוס את הענן
-}
-
-// ממיר תאריך לועזי לתאריך עברי מילולי
-function toHebrewDate(date) {
-  try {
-    const hebcal = window.Hebcal || window.hebcal;
-    if (!hebcal) return null;
-    const hd = new hebcal.HDate(date);
-    return hd.render('he');
-  } catch(e) { return null; }
 }
 
 // תאריך עברי בגימטריה לתצוגה — כ״ט אדר א׳ תשפ״ו
@@ -492,12 +483,6 @@ function App() {
     return c;
   }
 
-  function saveTarget() {
-    if (!targetInput) return;
-    setTargetDate(targetInput);
-    if (user) fbSave(user.uid, 'shas-target', targetInput);
-  }
-
   function addEntry() {
     if (!newEntry.trim()) return;
     const nj = [{ id: Date.now(), date: today(), text: newEntry.trim() }, ...journal];
@@ -710,9 +695,9 @@ function App() {
                           </div>
                           <div style={{ display:'flex', alignItems:'center', gap:'0.35rem', flexWrap:'wrap', justifyContent:'flex-end' }}>
                             {TRACTATE_LINKS[t.name] && (<>
-                              <a href={'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[t.name].sefaria + '?lang=he'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.62rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.14rem 0.5rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>שטיינ׳</a>
-                              <a href={'https://hebrewbooks.org/shas.aspx?mesechta=' + TRACTATE_LINKS[t.name].hb + '&daf=2&format=pdf'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.62rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.14rem 0.5rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>דף</a>
-                              <a href={'https://he.wikisource.org/wiki/' + TRACTATE_LINKS[t.name].ws} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.62rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.14rem 0.5rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>טקסט</a>
+                              <a href={'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[t.name].sefaria + '?lang=he'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>שטיינ׳</a>
+                              <a href={'https://hebrewbooks.org/shas.aspx?mesechta=' + TRACTATE_LINKS[t.name].hb + '&daf=2&format=pdf'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>דף</a>
+                              <a href={'https://he.wikisource.org/wiki/' + TRACTATE_LINKS[t.name].ws} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>טקסט</a>
                               {TRACTATE_LINKS[t.name]?.sinaiMapId && (
                                 <button onClick={e => {
                                   e.stopPropagation();
@@ -732,11 +717,11 @@ function App() {
                                     }
                                   }
                                 }}
-                                  style={{ fontSize:'0.62rem', color: sinaiOpen[t.name] ? '#fff' : '#b45309', background: sinaiOpen[t.name] ? '#b45309' : '#fdf1d4', border:'none', borderRadius:99, padding:'0.14rem 0.5rem', fontFamily:"'Heebo',sans-serif", fontWeight:600, cursor:'pointer' }}>
+                                  style={{ fontSize:'0.72rem', color: sinaiOpen[t.name] ? '#fff' : '#b45309', background: sinaiOpen[t.name] ? '#b45309' : '#fdf1d4', border:'none', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600, cursor:'pointer' }}>
                                   {sinaiOpen[t.name] ? '▲' : '▼'} סיני
                                 </button>
                               )}
-                              {SLIDES[t.name] && <a href={SLIDES[t.name]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.62rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.14rem 0.5rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>מצגות</a>}
+                              {SLIDES[t.name] && <a href={SLIDES[t.name]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>מצגות</a>}
                             </>)}
                             <span style={{ fontSize:'0.72rem', color:'#7a8aaa' }}>{cnt}/{totalAm}</span>
                             <span style={{ fontSize:'0.58rem', color:'#7a8aaa', display:'inline-block', transition:'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
@@ -1002,7 +987,7 @@ function App() {
             <Ic d={ICONS.mail} size={11} /> צור קשר
           </a>
         </span>
-        <span dir="ltr">v16 · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
+        <span dir="ltr">{APP_VERSION} · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
       </div>
     </div>
   );

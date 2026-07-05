@@ -1,4 +1,4 @@
-const CACHE = 'shas-v20';
+const CACHE = 'shas-v21';
 const ASSETS = ['./', './index.html', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './manifest.json'];
 
 self.addEventListener('install', e => {

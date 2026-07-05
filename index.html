@@ -102,7 +102,7 @@ input:focus, textarea:focus { outline:none; }
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
-const APP_VERSION = 'v20'; // חובה לעדכן יחד עם CACHE ב-sw.js
+const APP_VERSION = 'v21'; // חובה לעדכן יחד עם CACHE ב-sw.js
 
 const SHAS = [
   { seder: 'סדר זרעים', tractates: [{ name: 'ברכות', dafim: 63 }]},
@@ -299,6 +299,7 @@ const ICONS = {
   star:   [{ p:'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z' }],
   range:  [{ p:'M8 3v18' }, { p:'M16 3v18' }, { p:'M3 8h5' }, { p:'M16 8h5' }, { p:'M3 16h5' }, { p:'M16 16h5' }],
   mail:   [{ p:'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z' }, { p:'M22 6l-10 7L2 6' }],
+  headph: [{ p:'M3 18v-6a9 9 0 0 1 18 0v6' }, { p:'M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z' }, { p:'M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z' }],
 };
 
 function App() {
@@ -770,7 +771,6 @@ function App() {
                               <a href={'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[t.name].sefaria + '?lang=he'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>שטיינ׳</a>
                               {TRACTATE_LINKS[t.name].chavruta && <a href={'https://daf-yomi.com/BookFiles.aspx?type=1&id=' + TRACTATE_LINKS[t.name].chavruta} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="חברותא מבואר · באדיבות פורטל הדף היומי" style={{ fontSize:'0.72rem', textDecoration:'none', color:'#0f766e', background:'#e3f4f1', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>חברותא</a>}
                               <a href={'https://hebrewbooks.org/shas.aspx?mesechta=' + TRACTATE_LINKS[t.name].hb + '&daf=2&format=pdf'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>דף</a>
-                              <a href={'https://he.wikisource.org/wiki/' + TRACTATE_LINKS[t.name].ws} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>טקסט</a>
                               {TRACTATE_LINKS[t.name]?.sinaiMapId && (
                                 <button onClick={e => {
                                   e.stopPropagation();
@@ -790,11 +790,11 @@ function App() {
                                     }
                                   }
                                 }}
-                                  style={{ fontSize:'0.72rem', color: sinaiOpen[t.name] ? '#fff' : '#b45309', background: sinaiOpen[t.name] ? '#b45309' : '#fdf1d4', border:'none', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600, cursor:'pointer' }}>
-                                  {sinaiOpen[t.name] ? '▲' : '▼'} סיני
+                                  title="שיעורים להאזנה — מכון סיני"
+                                  style={{ fontSize:'0.72rem', color: sinaiOpen[t.name] ? '#fff' : '#b45309', background: sinaiOpen[t.name] ? '#b45309' : '#fdf1d4', border:'none', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:'0.28rem' }}>
+                                  <Ic d={ICONS.headph} size={12} /> שיעור · סיני {sinaiOpen[t.name] ? '▲' : '▼'}
                                 </button>
                               )}
-                              {SLIDES[t.name] && <a href={SLIDES[t.name]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>מצגות</a>}
                             </>)}
                             <span style={{ fontSize:'0.72rem', color:'#7a8aaa' }}>{cnt}/{totalAm}</span>
                             <span style={{ fontSize:'0.58rem', color:'#7a8aaa', display:'inline-block', transition:'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
@@ -824,6 +824,13 @@ function App() {
                           );
                           return (
                           <div style={{ padding:'0.8rem', background:'#f7f9ff', borderTop:'1px solid #eef1f8' }}>
+                            {TRACTATE_LINKS[t.name] && (
+                              <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', flexWrap:'wrap', marginBottom:'0.7rem' }}>
+                                <span style={{ fontSize:'0.66rem', color:'#7a8aaa', fontWeight:600 }}>עוד מקורות:</span>
+                                <a href={'https://he.wikisource.org/wiki/' + TRACTATE_LINKS[t.name].ws} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.7rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.2rem 0.6rem', fontWeight:600 }}>טקסט מלא</a>
+                                {SLIDES[t.name] && <a href={SLIDES[t.name]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.7rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.2rem 0.6rem', fontWeight:600 }}>מצגות</a>}
+                              </div>
+                            )}
                             {sinaiOpen[t.name] && TRACTATE_LINKS[t.name]?.sinaiMapId && (
                               <div style={{ background:'#fffbef', border:'1.5px solid #f59e0b', borderRadius:9, padding:'0.65rem 0.9rem', marginBottom:'0.8rem' }}>
                                 <div style={{ fontSize:'0.72rem', fontWeight:700, color:'#b45309', marginBottom:'0.5rem', fontFamily:"'Heebo',sans-serif" }}>שיעורים בסיני — {t.name}</div>

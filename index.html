@@ -102,7 +102,7 @@ input:focus, textarea:focus { outline:none; }
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
-const APP_VERSION = 'v19'; // חובה לעדכן יחד עם CACHE ב-sw.js
+const APP_VERSION = 'v20'; // חובה לעדכן יחד עם CACHE ב-sw.js
 
 const SHAS = [
   { seder: 'סדר זרעים', tractates: [{ name: 'ברכות', dafim: 63 }]},
@@ -141,44 +141,44 @@ const HEB = ['','א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב',
 const TOTAL_AMUDIM = SHAS.reduce((s, sed) => s + sed.tractates.reduce((ss, t) => ss + t.dafim * 2, 0), 0);
 
 const TRACTATE_LINKS = {
-  'ברכות':    { hb: 1,  sefaria: 'Berakhot',       ws: 'בבלי_ברכות',      sinaiMapId: 1  },
-  'שבת':      { hb: 2,  sefaria: 'Shabbat',         ws: 'בבלי_שבת',        sinaiMapId: 2  },
-  'עירובין':  { hb: 3,  sefaria: 'Eruvin',           ws: 'בבלי_עירובין',    sinaiMapId: 3  },
-  'פסחים':    { hb: 4,  sefaria: 'Pesachim',         ws: 'בבלי_פסחים',      sinaiMapId: 4  },
-  'שקלים':    { hb: 5,  sefaria: 'Jerusalem_Talmud_Shekalim', noDaf: true, ws: 'בבלי_שקלים', sinaiMapId: 5  },
-  'יומא':     { hb: 6,  sefaria: 'Yoma',             ws: 'בבלי_יומא',       sinaiMapId: 6  },
-  'סוכה':     { hb: 7,  sefaria: 'Sukkah',           ws: 'בבלי_סוכה',       sinaiMapId: 7  },
-  'ביצה':     { hb: 8,  sefaria: 'Beitzah',          ws: 'בבלי_ביצה'                       },
-  'ראש השנה': { hb: 9,  sefaria: 'Rosh_Hashanah',   ws: 'בבלי_ראש_השנה',   sinaiMapId: 9  },
-  'תענית':    { hb: 10, sefaria: 'Taanit',           ws: 'בבלי_תענית',      sinaiMapId: 10 },
-  'מגילה':    { hb: 11, sefaria: 'Megillah',         ws: 'בבלי_מגילה',      sinaiMapId: 11 },
-  'מועד קטן': { hb: 12, sefaria: 'Moed_Katan',      ws: 'בבלי_מועד_קטן',   sinaiMapId: 12 },
-  'חגיגה':    { hb: 13, sefaria: 'Chagigah',         ws: 'בבלי_חגיגה',      sinaiMapId: 13 },
-  'יבמות':    { hb: 14, sefaria: 'Yevamot',          ws: 'בבלי_יבמות',      sinaiMapId: 14 },
-  'כתובות':   { hb: 15, sefaria: 'Ketubot',          ws: 'בבלי_כתובות',     sinaiMapId: 15 },
-  'נדרים':    { hb: 16, sefaria: 'Nedarim',          ws: 'בבלי_נדרים',      sinaiMapId: 16 },
-  'נזיר':     { hb: 17, sefaria: 'Nazir',            ws: 'בבלי_נזיר',       sinaiMapId: 17 },
-  'סוטה':     { hb: 18, sefaria: 'Sotah',            ws: 'בבלי_סוטה',       sinaiMapId: 18 },
-  'גיטין':    { hb: 19, sefaria: 'Gittin',           ws: 'בבלי_גיטין',      sinaiMapId: 19 },
-  'קידושין':  { hb: 20, sefaria: 'Kiddushin',        ws: 'בבלי_קידושין',    sinaiMapId: 20 },
-  'בבא קמא':  { hb: 21, sefaria: 'Bava_Kamma',      ws: 'בבלי_בבא_קמא',   sinaiMapId: 21 },
-  'בבא מציעא':{ hb: 22, sefaria: 'Bava_Metzia',     ws: 'בבלי_בבא_מציעא', sinaiMapId: 22 },
-  'בבא בתרא': { hb: 23, sefaria: 'Bava_Batra',      ws: 'בבלי_בבא_בתרא',  sinaiMapId: 23 },
-  'סנהדרין':  { hb: 24, sefaria: 'Sanhedrin',        ws: 'בבלי_סנהדרין',    sinaiMapId: 24 },
-  'מכות':     { hb: 25, sefaria: 'Makkot',           ws: 'בבלי_מכות',       sinaiMapId: 25 },
-  'שבועות':   { hb: 26, sefaria: 'Shevuot',          ws: 'בבלי_שבועות',     sinaiMapId: 26 },
-  'עבודה זרה':{ hb: 27, sefaria: 'Avodah_Zarah',    ws: 'בבלי_עבודה_זרה',  sinaiMapId: 27 },
-  'הוריות':   { hb: 28, sefaria: 'Horayot',          ws: 'בבלי_הוריות',     sinaiMapId: 28 },
-  'זבחים':    { hb: 29, sefaria: 'Zevachim',         ws: 'בבלי_זבחים',      sinaiMapId: 29 },
-  'מנחות':    { hb: 30, sefaria: 'Menachot',         ws: 'בבלי_מנחות',      sinaiMapId: 30 },
-  'חולין':    { hb: 31, sefaria: 'Chullin',          ws: 'בבלי_חולין',      sinaiMapId: 31 },
-  'בכורות':   { hb: 32, sefaria: 'Bekhorot',         ws: 'בבלי_בכורות'                     },
-  'ערכין':    { hb: 33, sefaria: 'Arakhin',          ws: 'בבלי_ערכין'                       },
-  'תמורה':    { hb: 34, sefaria: 'Temurah',          ws: 'בבלי_תמורה'                       },
-  'כריתות':   { hb: 35, sefaria: 'Keritot',          ws: 'בבלי_כריתות'                      },
-  'מעילה':    { hb: 36, sefaria: 'Meilah',           ws: 'בבלי_מעילה'                       },
-  'תמיד':     { hb: 37, sefaria: 'Tamid',            ws: 'בבלי_תמיד'                        },
-  'נידה':     { hb: 38, sefaria: 'Niddah',           ws: 'בבלי_נידה'                        },
+  'ברכות':    { hb: 1,  sefaria: 'Berakhot',       ws: 'בבלי_ברכות',      sinaiMapId: 1,  chavruta: 188 },
+  'שבת':      { hb: 2,  sefaria: 'Shabbat',         ws: 'בבלי_שבת',        sinaiMapId: 2,  chavruta: 209 },
+  'עירובין':  { hb: 3,  sefaria: 'Eruvin',           ws: 'בבלי_עירובין',    sinaiMapId: 3,  chavruta: 132 },
+  'פסחים':    { hb: 4,  sefaria: 'Pesachim',         ws: 'בבלי_פסחים',      sinaiMapId: 4,  chavruta: 156 },
+  'שקלים':    { hb: 5,  sefaria: 'Jerusalem_Talmud_Shekalim', noDaf: true, ws: 'בבלי_שקלים', sinaiMapId: 5,  chavruta: 172 },
+  'יומא':     { hb: 6,  sefaria: 'Yoma',             ws: 'בבלי_יומא',       sinaiMapId: 6,  chavruta: 173 },
+  'סוכה':     { hb: 7,  sefaria: 'Sukkah',           ws: 'בבלי_סוכה',       sinaiMapId: 7,  chavruta: 178 },
+  'ביצה':     { hb: 8,  sefaria: 'Beitzah',          ws: 'בבלי_ביצה',                       chavruta: 175 },
+  'ראש השנה': { hb: 9,  sefaria: 'Rosh_Hashanah',   ws: 'בבלי_ראש_השנה',   sinaiMapId: 9,  chavruta: 176 },
+  'תענית':    { hb: 10, sefaria: 'Taanit',           ws: 'בבלי_תענית',      sinaiMapId: 10, chavruta: 179 },
+  'מגילה':    { hb: 11, sefaria: 'Megillah',         ws: 'בבלי_מגילה',      sinaiMapId: 11, chavruta: 135 },
+  'מועד קטן': { hb: 12, sefaria: 'Moed_Katan',      ws: 'בבלי_מועד_קטן',   sinaiMapId: 12, chavruta: 177 },
+  'חגיגה':    { hb: 13, sefaria: 'Chagigah',         ws: 'בבלי_חגיגה',      sinaiMapId: 13, chavruta: 185 },
+  'יבמות':    { hb: 14, sefaria: 'Yevamot',          ws: 'בבלי_יבמות',      sinaiMapId: 14, chavruta: 195 },
+  'כתובות':   { hb: 15, sefaria: 'Ketubot',          ws: 'בבלי_כתובות',     sinaiMapId: 15, chavruta: 196 },
+  'נדרים':    { hb: 16, sefaria: 'Nedarim',          ws: 'בבלי_נדרים',      sinaiMapId: 16, chavruta: 200 },
+  'נזיר':     { hb: 17, sefaria: 'Nazir',            ws: 'בבלי_נזיר',       sinaiMapId: 17, chavruta: 201 },
+  'סוטה':     { hb: 18, sefaria: 'Sotah',            ws: 'בבלי_סוטה',       sinaiMapId: 18, chavruta: 181 },
+  'גיטין':    { hb: 19, sefaria: 'Gittin',           ws: 'בבלי_גיטין',      sinaiMapId: 19, chavruta: 192 },
+  'קידושין':  { hb: 20, sefaria: 'Kiddushin',        ws: 'בבלי_קידושין',    sinaiMapId: 20, chavruta: 198 },
+  'בבא קמא':  { hb: 21, sefaria: 'Bava_Kamma',      ws: 'בבלי_בבא_קמא',   sinaiMapId: 21, chavruta: 191 },
+  'בבא מציעא':{ hb: 22, sefaria: 'Bava_Metzia',     ws: 'בבלי_בבא_מציעא', sinaiMapId: 22, chavruta: 190 },
+  'בבא בתרא': { hb: 23, sefaria: 'Bava_Batra',      ws: 'בבלי_בבא_בתרא',  sinaiMapId: 23, chavruta: 189 },
+  'סנהדרין':  { hb: 24, sefaria: 'Sanhedrin',        ws: 'בבלי_סנהדרין',    sinaiMapId: 24, chavruta: 202 },
+  'מכות':     { hb: 25, sefaria: 'Makkot',           ws: 'בבלי_מכות',       sinaiMapId: 25, chavruta: 180 },
+  'שבועות':   { hb: 26, sefaria: 'Shevuot',          ws: 'בבלי_שבועות',     sinaiMapId: 26, chavruta: 186 },
+  'עבודה זרה':{ hb: 27, sefaria: 'Avodah_Zarah',    ws: 'בבלי_עבודה_זרה',  sinaiMapId: 27, chavruta: 174 },
+  'הוריות':   { hb: 28, sefaria: 'Horayot',          ws: 'בבלי_הוריות',     sinaiMapId: 28, chavruta: 182 },
+  'זבחים':    { hb: 29, sefaria: 'Zevachim',         ws: 'בבלי_זבחים',      sinaiMapId: 29, chavruta: 193 },
+  'מנחות':    { hb: 30, sefaria: 'Menachot',         ws: 'בבלי_מנחות',      sinaiMapId: 30, chavruta: 197 },
+  'חולין':    { hb: 31, sefaria: 'Chullin',          ws: 'בבלי_חולין',      sinaiMapId: 31, chavruta: 194 },
+  'בכורות':   { hb: 32, sefaria: 'Bekhorot',         ws: 'בבלי_בכורות',                     chavruta: 184 },
+  'ערכין':    { hb: 33, sefaria: 'Arakhin',          ws: 'בבלי_ערכין',                       chavruta: 187 },
+  'תמורה':    { hb: 34, sefaria: 'Temurah',          ws: 'בבלי_תמורה',                       chavruta: 204 },
+  'כריתות':   { hb: 35, sefaria: 'Keritot',          ws: 'בבלי_כריתות',                      chavruta: 183 },
+  'מעילה':    { hb: 36, sefaria: 'Meilah',           ws: 'בבלי_מעילה',                       chavruta: 199 },
+  'תמיד':     { hb: 37, sefaria: 'Tamid',            ws: 'בבלי_תמיד',                        chavruta: 21  },
+  'נידה':     { hb: 38, sefaria: 'Niddah',           ws: 'בבלי_נידה',                        chavruta: 203 },
 };
 const SLIDES = {
   'פסחים': 'https://drive.google.com/drive/folders/1bfsBLRmfwi-QQrYMlJXf5NZ6mtW32-uJ?usp=sharing',
@@ -768,6 +768,7 @@ function App() {
                           <div style={{ display:'flex', alignItems:'center', gap:'0.35rem', flexWrap:'wrap', justifyContent:'flex-end' }}>
                             {TRACTATE_LINKS[t.name] && (<>
                               <a href={'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[t.name].sefaria + '?lang=he'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>שטיינ׳</a>
+                              {TRACTATE_LINKS[t.name].chavruta && <a href={'https://daf-yomi.com/BookFiles.aspx?type=1&id=' + TRACTATE_LINKS[t.name].chavruta} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="חברותא מבואר · באדיבות פורטל הדף היומי" style={{ fontSize:'0.72rem', textDecoration:'none', color:'#0f766e', background:'#e3f4f1', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>חברותא</a>}
                               <a href={'https://hebrewbooks.org/shas.aspx?mesechta=' + TRACTATE_LINKS[t.name].hb + '&daf=2&format=pdf'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>דף</a>
                               <a href={'https://he.wikisource.org/wiki/' + TRACTATE_LINKS[t.name].ws} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>טקסט</a>
                               {TRACTATE_LINKS[t.name]?.sinaiMapId && (
@@ -1058,11 +1059,12 @@ function App() {
         )}
       </div>
       <div style={{ textAlign:"right", padding:"0.5rem 1.5rem", fontSize:"0.65rem", color:"#aab4cc", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"0.3rem" }}>
-        <span style={{ display:"inline-flex", alignItems:"center", gap:"0.6rem" }}>
+        <span style={{ display:"inline-flex", alignItems:"center", gap:"0.6rem", flexWrap:"wrap" }}>
           נוצר ע"י עמיחי צדוק
           <a href={'mailto:amichai85@gmail.com?subject=' + encodeURIComponent('משוב על מעקב הש״ס')} style={{ display:"inline-flex", alignItems:"center", gap:"0.3rem", color:"#5a70aa", textDecoration:"none", background:"#eef2f9", borderRadius:99, padding:"0.18rem 0.6rem", fontWeight:600 }}>
             <Ic d={ICONS.mail} size={11} /> צור קשר
           </a>
+          <span style={{ color:"#8a97b5" }}>· קישורי החברותא באדיבות <a href="https://daf-yomi.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0f766e", textDecoration:"none", fontWeight:600 }}>פורטל הדף היומי</a></span>
         </span>
         <span dir="ltr">{APP_VERSION} · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
       </div>

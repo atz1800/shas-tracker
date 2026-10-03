@@ -3,11 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="מעקב הש״ס">
 <meta name="theme-color" content="#1a2d6e">
 <title>מעקב הש״ס</title>
+<meta name="description" content="עקוב אחר הלמידה שלך בדרך לסיום הש״ס הבבלי — סימון עמודים, דף יומי, חזרות, יומן ויעד אישי">
 <meta property="og:title" content="מעקב הש״ס">
 <meta property="og:description" content="עקוב אחר הלמידה שלך בדרך לסיום הש״ס הבבלי">
 <meta property="og:image" content="https://atz1800.github.io/shas-tracker/og-image.png?v=2">
@@ -26,7 +28,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/@hebcal/core@5.7.0/dist/bundle.min.js"></script>
+<script src="https://unpkg.com/@hebcal/core@5.6.1/dist/bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script type="module" id="fb-init">
@@ -85,6 +87,8 @@ input:focus, textarea:focus { outline:none; }
 .journal-entry { background:#fff; border:1.5px solid #d8e0f0; border-radius:10px; padding:1rem; margin-bottom:0.7rem; }
 .journal-entry:hover .entry-actions { opacity:1; }
 .entry-actions { opacity:0; transition:opacity 0.15s; display:flex; gap:0.4rem; }
+.entry-actions:focus-within { opacity:1; }
+@media (hover: none) { .entry-actions { opacity:0.75; } }
 .entry-btn { background:none; border:none; cursor:pointer; font-size:0.8rem; padding:0.2rem 0.4rem; border-radius:4px; color:#8899bb; transition:all 0.12s; }
 .entry-btn:hover { background:#eef1ff; color:#3a4f7a; }
 .entry-btn.del:hover { background:#fff0f0; color:#8b2020; }
@@ -102,7 +106,7 @@ input:focus, textarea:focus { outline:none; }
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
-const APP_VERSION = 'v21'; // חובה לעדכן יחד עם CACHE ב-sw.js
+const APP_VERSION = 'v22'; // חובה לעדכן יחד עם CACHE ב-sw.js
 
 const SHAS = [
   { seder: 'סדר זרעים', tractates: [{ name: 'ברכות', dafim: 63 }]},
@@ -131,12 +135,17 @@ const SHAS = [
     { name: 'חולין', dafim: 141 }, { name: 'בכורות', dafim: 60 },
     { name: 'ערכין', dafim: 33 }, { name: 'תמורה', dafim: 33 },
     { name: 'כריתות', dafim: 27 }, { name: 'מעילה', dafim: 21 },
-    { name: 'תמיד', dafim: 9 },
+    { name: 'תמיד', dafim: 9, start: 25 }, // בדפוס וילנא: כ״ה–ל״ג
   ]},
   { seder: 'סדר טהרות', tractates: [{ name: 'נידה', dafim: 72 }]},
 ];
 
 const HEB = ['','א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב','יג','יד','טו','טז','יז','יח','יט','כ','כא','כב','כג','כד','כה','כו','כז','כח','כט','ל','לא','לב','לג','לד','לה','לו','לז','לח','לט','מ','מא','מב','מג','מד','מה','מו','מז','מח','מט','נ','נא','נב','נג','נד','נה','נו','נז','נח','נט','ס','סא','סב','סג','סד','סה','סו','סז','סח','סט','ע','עא','עב','עג','עד','עה','עו','עז','עח','עט','פ','פא','פב','פג','פד','פה','פו','פז','פח','פט','צ','צא','צב','צג','צד','צה','צו','צז','צח','צט','ק','קא','קב','קג','קד','קה','קו','קז','קח','קט','קי','קיא','קיב','קיג','קיד','קטו','קטז','קיז','קיח','קיט','קכ','קכא','קכב','קכג','קכד','קכה','קכו','קכז','קכח','קכט','קל','קלא','קלב','קלג','קלד','קלה','קלו','קלז','קלח','קלט','קמ','קמא','קמב','קמג','קמד','קמה','קמו','קמז','קמח','קמט','קנ','קנא','קנב','קנג','קנד','קנה','קנו','קנז','קנח','קנט','קס','קסא','קסב','קסג','קסד','קסה','קסו','קסז','קסח','קסט','קע','קעא','קעב','קעג','קעד','קעה','קעו'];
+
+// דף ראשון במסכת (2 לכולן, חוץ מתמיד שמתחילה בכ״ה) ורשימת הדפים
+const firstDaf = t => t.start || 2;
+const dafList = t => Array.from({ length: t.dafim }, (_, i) => i + firstDaf(t));
+const TRACTATE_BY_NAME = Object.fromEntries(SHAS.flatMap(s => s.tractates).map(t => [t.name, t]));
 
 const TOTAL_AMUDIM = SHAS.reduce((s, sed) => s + sed.tractates.reduce((ss, t) => ss + t.dafim * 2, 0), 0);
 
@@ -188,7 +197,24 @@ const SLIDES = {
 
 const QUOTE = 'כִּי עַל־יְדֵי רִבּוּי הַלִּמּוּד שֶׁיִּלְמַד בִּמְהִירוּת וְיִזְכֶּה לִלְמֹד הַרְבֵּה, עַל־יְדֵי־זֶה יִזְכֶּה לַעֲבֹר כַּמָּה פְּעָמִים אֵלּוּ הַסְּפָרִים שֶׁלּוֹמֵד, לְגָמְרָם וְלַחֲזֹר לְהַתְחִיל וּלְגָמְרָם פַּעַם אַחַר פַּעַם. וְעַל־יְדֵי־זֶה מִמֵּילָא יָבִין בַּפַּעַם הַשֵּׁנִי וְהַשְּׁלִישִׁי כָּל מַה שֶּׁלֹּא הָיָה מֵבִין בִּתְחִלָּה, כָּל מַה שֶּׁאֶפְשָׁר לְהָבִין וְלַעֲמֹד עַל דִּבְרֵיהֶם.';
 
+// חיפוש סלחני לכתיב מלא/חסר ולגרשיים: נדה=נידה, קדושין=קידושין
+function normHeb(s) { return s.replace(/[יו"'״׳\s]/g, ''); }
 function amudKey(t, d, a) { return t + '||' + d + '||' + a; }
+// הגירה: תמיד נשמרה בעבר כדפים ב׳–י׳ — ממירים לכ״ה–ל״ג (אותו סדר, היסט 23)
+function migrateKeys(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  let out = null;
+  for (const k in obj) {
+    const m = /^תמיד\|\|(\d+)\|\|(.)$/.exec(k);
+    if (m && +m[1] >= 2 && +m[1] <= 10) {
+      if (!out) out = { ...obj };
+      const nk = amudKey('תמיד', +m[1] + 23, m[2]);
+      if (!(nk in out)) out[nk] = out[k];
+      delete out[k];
+    }
+  }
+  return out || obj;
+}
 function today() { return new Date().toLocaleDateString('he-IL', { day:'numeric', month:'numeric', year:'numeric' }); }
 
 const DAF_YOMI_ORDER = ['ברכות','שבת','עירובין','פסחים','שקלים','יומא','סוכה','ביצה','ראש השנה','תענית','מגילה','מועד קטן','חגיגה','יבמות','כתובות','נדרים','נזיר','סוטה','גיטין','קידושין','בבא קמא','בבא מציעא','בבא בתרא','סנהדרין','מכות','שבועות','עבודה זרה','הוריות','זבחים','מנחות','חולין','בכורות','ערכין','תמורה','כריתות','מעילה','תמיד','נידה'];
@@ -206,18 +232,37 @@ function calcStreak(sd) {
   return (sd.date === todayStr || sd.date === yStr) ? (sd.count || 1) : 0;
 }
 
-let _dyCache = null;
-function getTodayDafYomi() {
-  if (_dyCache) return _dyCache;
-  const START = new Date(2020, 0, 5); // מחזור י"ד התחיל 5.1.2020
-  const dayNum = Math.floor((new Date() - START) / 86400000);
+// דף יומי — כמו בלוח הדף היומי: אחרי מעילה (ב׳–כ״ב) באים קינים כ״ג–כ״ה, תמיד כ״ו–ל״ג, מידות ל״ד–ל״ז. מחזור של 2711 יום
+const DY_EXTRA = {
+  'קינים':  'https://www.sefaria.org.il/Mishnah_Kinnim?lang=he',
+  'מידות':  'https://www.sefaria.org.il/Mishnah_Middot?lang=he',
+};
+let _dyList = null;
+function dafYomiList() {
+  if (_dyList) return _dyList;
   const list = [];
   for (const name of DAF_YOMI_ORDER) {
-    const t = SHAS.flatMap(s => s.tractates).find(tr => tr.name === name);
-    if (!t) continue;
-    for (let d = 2; d <= t.dafim + 1; d++) list.push({ tractate: name, daf: d });
+    if (name === 'תמיד') continue; // נלמדת בתוך רצף מעילה
+    const t = TRACTATE_BY_NAME[name];
+    for (const d of dafList(t)) list.push({ tractate: name, daf: d });
+    if (name === 'מעילה') {
+      for (let d = 23; d <= 25; d++) list.push({ tractate: 'קינים', daf: d });
+      for (let d = 26; d <= 33; d++) list.push({ tractate: 'תמיד', daf: d });
+      for (let d = 34; d <= 37; d++) list.push({ tractate: 'מידות', daf: d });
+    }
   }
-  _dyCache = dayNum >= 0 ? (list[dayNum % list.length] || null) : null;
+  return (_dyList = list);
+}
+let _dyCache = null, _dyDate = null;
+function getTodayDafYomi() {
+  const now = new Date();
+  const key = todayDateStr();
+  if (_dyDate === key) return _dyCache;
+  // ספירת ימים לפי תאריך בלבד (UTC) — בלי סטייה של שעון קיץ
+  const dayNum = Math.round((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(2020, 0, 5)) / 86400000); // מחזור י״ד התחיל 5.1.2020
+  const list = dafYomiList();
+  _dyCache = dayNum >= 0 ? list[dayNum % list.length] : null;
+  _dyDate = key;
   return _dyCache;
 }
 
@@ -270,17 +315,25 @@ function fmtHebDate(o) {
   try { return new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { day:'numeric', month:'long', year:'numeric' }).format(new Date(o.date)); } catch(e) { return new Date(o.date).toLocaleDateString('he-IL'); }
 }
 
-// מחשב את יום ההולדת העברי בשנה נתונה (לועזית)
-function hebrewBirthdayInYear(birthDate, targetYear) {
+// 'YYYY-MM-DD' כתאריך מקומי (new Date על מחרוזת כזו מפרש UTC ועלול לזוז ביום)
+function parseLocalDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+
+// מחשב את יום ההולדת העברי שבו מגיעים לגיל age (שנה עברית של הלידה + age)
+function hebrewBirthdayAtAge(birthDate, age) {
   try {
     const hebcal = window.Hebcal || window.hebcal;
     if (!hebcal) return null;
-    const birthHeb = new hebcal.HDate(birthDate);
-    // יום הולדת עברי בשנה העברית המתאימה
-    const targetGregorianApprox = new Date(targetYear, 5, 1); // אמצע השנה
-    const targetHebYear = new hebcal.HDate(targetGregorianApprox).getFullYear();
-    const bdayThisYear = new hebcal.HDate(birthHeb.getDate(), birthHeb.getMonth(), targetHebYear);
-    return { hebrew: bdayThisYear.renderGematriya ? bdayThisYear.renderGematriya(true) : bdayThisYear.render('he'), gregorian: bdayThisYear.greg() };
+    const { HDate } = hebcal;
+    const birthHeb = new HDate(birthDate);
+    const year = birthHeb.getFullYear() + Number(age);
+    let month = birthHeb.getMonth();
+    const ADAR_I = 12, ADAR_II = 13;
+    const leap = HDate.isLeapYear(year);
+    if (!leap && month === ADAR_II) month = ADAR_I;               // אדר ב׳ בשנה פשוטה → אדר
+    else if (leap && month === ADAR_I && !HDate.isLeapYear(birthHeb.getFullYear())) month = ADAR_II; // נולד באדר פשוט → אדר ב׳
+    const day = Math.min(birthHeb.getDate(), HDate.daysInMonth(month, year)); // ל׳ חשוון/כסלו בשנה חסרה
+    const bday = new HDate(day, month, year);
+    return { hebrew: bday.renderGematriya ? bday.renderGematriya(true) : bday.render('he'), gregorian: bday.greg() };
   } catch(e) { return null; }
 }
 
@@ -392,14 +445,22 @@ function App() {
       if (u) {
         // מאכלס את כל ה-state מתוך אובייקט נתונים (מהשרת או מהעותק המקומי)
         const hydrate = (data) => {
-          try { setLearned(data['shas-learned'] ? JSON.parse(data['shas-learned']) : {}); } catch(e) { setLearned({}); }
+          try { setLearned(migrateKeys(data['shas-learned'] ? JSON.parse(data['shas-learned']) : {})); } catch(e) { setLearned({}); }
           try { setJournal(data['shas-journal'] ? JSON.parse(data['shas-journal']) : []); } catch(e) { setJournal([]); }
-          try { setReviews(data['shas-reviews'] ? JSON.parse(data['shas-reviews']) : {}); } catch(e) { setReviews({}); }
+          try { setReviews(migrateKeys(data['shas-reviews'] ? JSON.parse(data['shas-reviews']) : {})); } catch(e) { setReviews({}); }
           try { const sd = data['shas-streak'] ? JSON.parse(data['shas-streak']) : null; setStreakData(sd); streakRef.current = sd; } catch(e) { setStreakData(null); }
           try { setNotes(data['shas-notes'] ? JSON.parse(data['shas-notes']) : {}); } catch(e) { setNotes({}); }
-          try { const hd = data['shas-hard'] ? JSON.parse(data['shas-hard']) : {}; setHard(hd); hardRef.current = hd; } catch(e) { setHard({}); }
+          try { const hd = migrateKeys(data['shas-hard'] ? JSON.parse(data['shas-hard']) : {}); setHard(hd); hardRef.current = hd; } catch(e) { setHard({}); }
           if (data['shas-target']) {
-            const raw = data['shas-target'];
+            let raw = data['shas-target'];
+            try {
+              // יעדים ישנים חושבו בשנה העברית הלא נכונה — מחשבים מחדש מתאריך הלידה והגיל
+              const o = JSON.parse(raw);
+              if (o && o.birth && o.birth.length === 10 && o.age) {
+                const b = hebrewBirthdayAtAge(parseLocalDate(o.birth), o.age);
+                if (b) raw = JSON.stringify({ ...o, date: b.gregorian.toISOString(), hebrewLabel: b.hebrew });
+              }
+            } catch(e) {}
             setTargetDate(raw); setTargetInput(raw);
             try {
               const o = JSON.parse(raw);
@@ -449,15 +510,15 @@ function App() {
       if (!window._shasDataLoaded) return; // רק אחרי שהטעינה הראשונית הצליחה
       const d = snap.data();
       try {
-        const m = mergeInto(learnedRef.current, d['shas-learned'] ? JSON.parse(d['shas-learned']) : null);
+        const m = mergeInto(learnedRef.current, migrateKeys(d['shas-learned'] ? JSON.parse(d['shas-learned']) : null));
         if (m) { learnedRef.current = m; setLearned(m); try { localStorage.setItem('shas-learned', JSON.stringify(m)); } catch(e){} }
       } catch(e){}
       try {
-        const m = mergeInto(reviewsRef.current, d['shas-reviews'] ? JSON.parse(d['shas-reviews']) : null);
+        const m = mergeInto(reviewsRef.current, migrateKeys(d['shas-reviews'] ? JSON.parse(d['shas-reviews']) : null));
         if (m) { reviewsRef.current = m; setReviews(m); }
       } catch(e){}
       try {
-        const m = mergeInto(hardRef.current, d['shas-hard'] ? JSON.parse(d['shas-hard']) : null);
+        const m = mergeInto(hardRef.current, migrateKeys(d['shas-hard'] ? JSON.parse(d['shas-hard']) : null));
         if (m) { hardRef.current = m; setHard(m); }
       } catch(e){}
     }, err => { console.warn('snapshot listener error', err); });
@@ -472,7 +533,7 @@ function App() {
       }
     });
   }
-  function signOutUser() { const { auth, signOut } = window._fb; signOut(auth); window._shasDataLoaded = false; dataLoadedRef.current = false; setLearned({}); setJournal([]); setReviews({}); setReviewsMode({}); setStreakData(null); setNotes({}); setHard({}); setHardMode({}); setTargetDate(null); setTargetInput(''); setAgeInput(''); setBirthInput(''); document.title = 'מעקב הש״ס'; }
+  function signOutUser() { const { auth, signOut } = window._fb; signOut(auth); try { localStorage.removeItem('shas-fulldata'); localStorage.removeItem('shas-learned'); } catch(e) {} window._shasDataLoaded = false; dataLoadedRef.current = false; setLearned({}); setJournal([]); setReviews({}); setReviewsMode({}); setStreakData(null); setNotes({}); setHard({}); setHardMode({}); setTargetDate(null); setTargetInput(''); setAgeInput(''); setBirthInput(''); document.title = 'מעקב הש״ס'; }
 
   function toggleAmud(tractate, daf, amud) {
     const k = amudKey(tractate, daf, amud);
@@ -500,14 +561,14 @@ function App() {
 
   function markAll(tractate, dafim) {
     const nl = { ...learned };
-    for (let d = 2; d <= dafim + 1; d++) { nl[amudKey(tractate,d,'א')] = true; nl[amudKey(tractate,d,'ב')] = true; }
+    for (const d of dafList(TRACTATE_BY_NAME[tractate])) { nl[amudKey(tractate,d,'א')] = true; nl[amudKey(tractate,d,'ב')] = true; }
     learnedRef.current = nl;
     setLearned(nl); if (user) fbSave(user.uid, 'shas-learned', nl);
   }
 
   function unmarkAll(tractate, dafim) {
     const nl = { ...learned };
-    for (let d = 2; d <= dafim + 1; d++) { delete nl[amudKey(tractate,d,'א')]; delete nl[amudKey(tractate,d,'ב')]; }
+    for (const d of dafList(TRACTATE_BY_NAME[tractate])) { delete nl[amudKey(tractate,d,'א')]; delete nl[amudKey(tractate,d,'ב')]; }
     learnedRef.current = nl;
     setLearned(nl); if (user) fbSave(user.uid, 'shas-learned', nl);
   }
@@ -522,7 +583,7 @@ function App() {
     const toIdx   = (toDaf  - 2) * 2 + aIdx(toAmud);
     if (fromIdx > toIdx) return;
     const nl = { ...learned };
-    for (let d = 2; d <= dafim + 1; d++) {
+    for (const d of dafList(TRACTATE_BY_NAME[tractate])) {
       for (const amud of ['א','ב']) {
         const idx = (d - 2) * 2 + aIdx(amud);
         if (idx >= fromIdx && idx <= toIdx) nl[amudKey(tractate, d, amud)] = true;
@@ -538,7 +599,7 @@ function App() {
     const m = {};
     for (const sed of SHAS) for (const t of sed.tractates) {
       let c = 0;
-      for (let d = 2; d <= t.dafim + 1; d++) {
+      for (const d of dafList(t)) {
         if (learned[amudKey(t.name,d,'א')]) c++;
         if (learned[amudKey(t.name,d,'ב')]) c++;
       }
@@ -601,8 +662,8 @@ function App() {
     setTimeout(() => setBackupMsg(null), 2500);
   }
 
-  const totalLearned = Object.keys(learned).length;
-  const pct = Math.round((totalLearned / TOTAL_AMUDIM) * 100);
+  const totalLearned = Object.values(counts).reduce((a, b) => a + b, 0); // רק עמודים קיימים (מתעלם ממפתחות ישנים/שגויים)
+  const pct = totalLearned === TOTAL_AMUDIM ? 100 : Math.min(99, Math.round((totalLearned / TOTAL_AMUDIM) * 100));
   const remaining = TOTAL_AMUDIM - totalLearned;
   const targetObj2 = targetDate ? (() => {
     try {
@@ -636,10 +697,10 @@ function App() {
       </div>
       <div style={{ fontSize:'1rem', color:'#e8c040', fontWeight:600, marginBottom:'3.5rem' }}>בעזרת השם</div>
       <button onClick={signIn} style={{ background:'#fff', color:'#2a40a0', border:'none', borderRadius:12, padding:'0.85rem 2rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'1rem', cursor:'pointer', display:'flex', alignItems:'center', gap:'0.7rem', boxShadow:'0 4px 20px rgba(0,0,0,0.3)' }}>
-        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" style={{ width:22, height:22 }} />
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style={{ width:22, height:22 }} />
         כניסה עם Google
       </button>
-      <div style={{ marginTop:'5rem', fontSize:'0.72rem', color:'rgba(255,255,255,0.25)', fontFamily:"'Heebo',sans-serif" }}>נוצר ע"י עמיחי צדוק</div>
+      <div style={{ marginTop:'5rem', fontSize:'0.72rem', color:'rgba(255,255,255,0.25)', fontFamily:"'Heebo',sans-serif" }}>נוצר ע"י עמיחי צדוק · <a href="privacy.html" style={{ color:'rgba(255,255,255,0.4)' }}>מדיניות פרטיות</a></div>
     </div>
   );
 
@@ -702,7 +763,7 @@ function App() {
           </div>
           <div className="top-actions" style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
             {!isOnline && <span style={{ fontSize:'0.65rem', background:'#8b2020', color:'#fff', borderRadius:4, padding:'0.15rem 0.4rem', fontWeight:600 }}>אופליין</span>}
-            <img src={user.photoURL} style={{ width:22, height:22, borderRadius:'50%', border:'1.5px solid #4a67c8' }} />
+            {user.photoURL && <img src={user.photoURL} alt="" referrerPolicy="no-referrer" style={{ width:22, height:22, borderRadius:'50%', border:'1.5px solid #4a67c8' }} />}
             <span style={{ fontSize:'0.7rem', color:'#7a90cc' }}>{user.displayName?.split(' ')[0]}</span>
             <button onClick={syncToCloud} title="גיבוי ענן" style={{ background: backupMsg?.ok ? '#1a7a50' : backupMsg?.ok === false ? '#8b2020' : 'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:6, color: backupMsg ? '#fff' : '#7a90cc', fontSize:'0.62rem', padding:'0.18rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif", fontWeight:600, transition:'all 0.2s' }}>{backupMsg ? backupMsg.text : '☁ גיבוי'}</button>
             <button onClick={signOutUser} style={{ background:'none', border:'1px solid rgba(255,255,255,0.15)', borderRadius:6, color:'#7a90cc', fontSize:'0.65rem', padding:'0.2rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>יציאה</button>
@@ -727,7 +788,7 @@ function App() {
             </>) : (
               <div style={{ fontSize:'0.86rem', color:'#7a8aaa', fontStyle:'italic' }}>אז מה היעד שלך? <span style={{ color:'#4a67c8', cursor:'pointer', fontStyle:'normal', fontWeight:600 }} onClick={() => setTab('target')}>הגדר עכשיו ←</span></div>
             )}
-            {(() => { const dy = getTodayDafYomi(); if (!dy) return null; const tl = TRACTATE_LINKS[dy.tractate]; const lnk = tl ? 'https://www.sefaria.org.il/Steinsaltz_on_' + tl.sefaria + (tl.noDaf ? '' : '.' + dy.daf + 'a') + '?lang=he' : null; return lnk ? <a href={lnk} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.76rem', color:'#b45309', fontWeight:600, background:'#fffbef', border:'1px solid #f59e0b', borderRadius:6, padding:'0.16rem 0.55rem', whiteSpace:'nowrap', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'0.3rem' }}><Ic d={ICONS.cal} size={13} /> {dy.tractate} {HEB[dy.daf]} ↗</a> : null; })()}
+            {(() => { const dy = getTodayDafYomi(); if (!dy) return null; const tl = TRACTATE_LINKS[dy.tractate]; const lnk = tl ? 'https://www.sefaria.org.il/Steinsaltz_on_' + tl.sefaria + (tl.noDaf ? '' : '.' + dy.daf + 'a') + '?lang=he' : (DY_EXTRA[dy.tractate] || null); return lnk ? <a href={lnk} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.76rem', color:'#b45309', fontWeight:600, background:'#fffbef', border:'1px solid #f59e0b', borderRadius:6, padding:'0.16rem 0.55rem', whiteSpace:'nowrap', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'0.3rem' }}><Ic d={ICONS.cal} size={13} /> דף יומי: {dy.tractate} {HEB[dy.daf]} ↗</a> : null; })()}
           </div>
 
           <div style={{ position:'relative', marginBottom:'1.2rem' }}>
@@ -738,7 +799,7 @@ function App() {
           </div>
 
           {SHAS.map(sed => {
-            const filtered = sed.tractates.filter(t => !search || t.name.includes(search));
+            const filtered = sed.tractates.filter(t => !search.trim() || normHeb(t.name).includes(normHeb(search)));
             if (!filtered.length) return null;
             const sL = filtered.reduce((s,t) => s + countT(t.name, t.dafim), 0);
             const sT = filtered.reduce((s,t) => s + t.dafim*2, 0);
@@ -770,7 +831,7 @@ function App() {
                             {TRACTATE_LINKS[t.name] && (<>
                               <a href={'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[t.name].sefaria + '?lang=he'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>שטיינ׳</a>
                               {TRACTATE_LINKS[t.name].chavruta && <a href={'https://daf-yomi.com/BookFiles.aspx?type=1&id=' + TRACTATE_LINKS[t.name].chavruta} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="חברותא מבואר · באדיבות פורטל הדף היומי" style={{ fontSize:'0.72rem', textDecoration:'none', color:'#0f766e', background:'#e3f4f1', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>חברותא</a>}
-                              <a href={'https://hebrewbooks.org/shas.aspx?mesechta=' + TRACTATE_LINKS[t.name].hb + '&daf=2&format=pdf'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>דף</a>
+                              <a href={'https://hebrewbooks.org/shas.aspx?mesechta=' + TRACTATE_LINKS[t.name].hb + '&daf=' + firstDaf(t) + '&format=pdf'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>דף</a>
                               {TRACTATE_LINKS[t.name]?.sinaiMapId && (
                                 <button onClick={e => {
                                   e.stopPropagation();
@@ -807,11 +868,11 @@ function App() {
                           const rs = rangeState[t.name] || {};
                           const showRange = rs.showRange || false;
                           const isDY_tractate = getTodayDafYomi()?.tractate === t.name;
-                          const rFromDaf  = rs.fromDaf  ?? 2;
+                          const rFromDaf  = rs.fromDaf  ?? firstDaf(t);
                           const rFromAmud = rs.fromAmud ?? 'א';
-                          const rToDaf    = rs.toDaf    ?? (t.dafim + 1);
+                          const rToDaf    = rs.toDaf    ?? (firstDaf(t) + t.dafim - 1);
                           const rToAmud   = rs.toAmud   ?? 'ב';
-                          const dafOptions = Array.from({ length: t.dafim }, (_, i) => i + 2);
+                          const dafOptions = dafList(t);
                           const amudToggle = (field, val) => (
                             <div style={{ display:'flex', border:'1px solid #c0ccf0', borderRadius:5, overflow:'hidden' }}>
                               {['א','ב'].map(a => (
@@ -835,7 +896,7 @@ function App() {
                               <div style={{ background:'#fffbef', border:'1.5px solid #f59e0b', borderRadius:9, padding:'0.65rem 0.9rem', marginBottom:'0.8rem' }}>
                                 <div style={{ fontSize:'0.72rem', fontWeight:700, color:'#b45309', marginBottom:'0.5rem', fontFamily:"'Heebo',sans-serif" }}>שיעורים בסיני — {t.name}</div>
                                 <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
-                                  {Array.from({ length: t.dafim }, (_, i) => i + 2).map(daf => (
+                                  {dafList(t).map(daf => (
                                     <a key={daf} href={'https://map.sinai.org.il/daf/' + TRACTATE_LINKS[t.name].sinaiMapId + '/' + daf}
                                       target="_blank" rel="noopener noreferrer"
                                       style={{ fontSize:'0.8rem', fontFamily:"'Frank Ruhl Libre',serif", color:'#92400e', background:'#fef3c7', border:'1px solid #fbbf24', borderRadius:5, padding:'0.12rem 0.38rem', textDecoration:'none', fontWeight:600, lineHeight:1.6 }}>
@@ -884,7 +945,7 @@ function App() {
                             )}
                             {isDY_tractate && <div style={{ fontSize:'0.7rem', color:'#b45309', fontWeight:600, marginBottom:'0.4rem', display:'flex', alignItems:'center', gap:'0.3rem' }}><Ic d={ICONS.cal} size={12} /> הדף היומי: {HEB[getTodayDafYomi().daf]} — מסומן בצהוב</div>}
                             <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
-                              {Array.from({ length: t.dafim }, (_, i) => i + 2).map(daf =>
+                              {dafList(t).map(daf =>
                                 ['א','ב'].map(amud => {
                                   const k = amudKey(t.name, daf, amud);
                                   const isL = !!learned[k];
@@ -921,9 +982,8 @@ function App() {
 
         {tab === 'target' && (() => {
           const targetObj = targetDate ? (() => { try { return JSON.parse(targetDate); } catch(e) { return null; } })() : null;
-          const birthDateObj = (birthInput && birthInput.split('-').filter(Boolean).length === 3) ? new Date(birthInput) : null;
-          const targetYear = birthDateObj ? birthDateObj.getFullYear() + Number(ageInput) : null;
-          const bdayResult = (birthDateObj && ageInput) ? hebrewBirthdayInYear(birthDateObj, targetYear) : null;
+          const birthDateObj = (birthInput && birthInput.split('-').filter(Boolean).length === 3) ? parseLocalDate(birthInput) : null;
+          const bdayResult = (birthDateObj && ageInput) ? hebrewBirthdayAtAge(birthDateObj, ageInput) : null;
           const computedDate = bdayResult ? bdayResult.gregorian : null;
           const hebrewDate = bdayResult ? bdayResult.hebrew : null;
           return (
@@ -977,7 +1037,7 @@ function App() {
                       setBirthInput(e.target.value + '-' + (parts[1]||'01') + '-' + (parts[2]||'01'));
                     }} style={{ flex:2, border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.6rem 0.4rem', fontFamily:"'Heebo',sans-serif", fontSize:'0.95rem', color:'#1a2340' }}>
                       <option value="">שנה</option>
-                      {Array.from({length:80},(_,i)=>2010-i).map(y => <option key={y} value={y}>{y}</option>)}
+                      {Array.from({length:90},(_,i)=>new Date().getFullYear()-10-i).map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                   </div>
                 </div>
@@ -989,9 +1049,8 @@ function App() {
               )}
               <button onClick={async () => {
                 if (!ageInput || !birthInput) return;
-                const birthDateObjSave = new Date(birthInput);
-                const targetYearSave = birthDateObjSave.getFullYear() + Number(ageInput);
-                const bdaySave = hebrewBirthdayInYear(birthDateObjSave, targetYearSave);
+                const birthDateObjSave = parseLocalDate(birthInput);
+                const bdaySave = hebrewBirthdayAtAge(birthDateObjSave, ageInput);
                 const d = bdaySave ? bdaySave.gregorian : new Date(birthDateObjSave.getFullYear() + Number(ageInput), birthDateObjSave.getMonth(), birthDateObjSave.getDate());
                 const obj = { age: Number(ageInput), birth: birthInput, date: d.toISOString(), hebrewLabel: bdaySave ? bdaySave.hebrew : null };
                 const val = JSON.stringify(obj);
@@ -1044,8 +1103,8 @@ function App() {
                     <span style={{ fontSize:'0.7rem', color:'#7a8aaa' }}>{entry.date}</span>
                   </div>
                   <div className="entry-actions">
-                    <button className="entry-btn" onClick={() => { setEditingId(entry.id); setEditText(entry.text); }}>✏️</button>
-                    <button className="entry-btn del" onClick={() => deleteEntry(entry.id)}>🗑</button>
+                    <button className="entry-btn" aria-label="ערוך רשומה" title="ערוך" onClick={() => { setEditingId(entry.id); setEditText(entry.text); }}>✏️</button>
+                    <button className="entry-btn del" aria-label="מחק רשומה" title="מחק" onClick={() => { if (confirm('למחוק את הרשומה?')) deleteEntry(entry.id); }}>🗑</button>
                   </div>
                 </div>
                 {editingId === entry.id ? (
@@ -1072,6 +1131,7 @@ function App() {
             <Ic d={ICONS.mail} size={11} /> צור קשר
           </a>
           <span style={{ color:"#8a97b5" }}>· קישורי החברותא באדיבות <a href="https://daf-yomi.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0f766e", textDecoration:"none", fontWeight:600 }}>פורטל הדף היומי</a></span>
+          <a href="privacy.html" style={{ color:"#8a97b5" }}>מדיניות פרטיות</a>
         </span>
         <span dir="ltr">{APP_VERSION} · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
       </div>

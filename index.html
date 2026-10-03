@@ -106,7 +106,7 @@ input:focus, textarea:focus { outline:none; }
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
-const APP_VERSION = 'v22'; // חובה לעדכן יחד עם CACHE ב-sw.js
+const APP_VERSION = 'v23'; // חובה לעדכן יחד עם CACHE ב-sw.js
 
 const SHAS = [
   { seder: 'סדר זרעים', tractates: [{ name: 'ברכות', dafim: 63 }]},
@@ -268,12 +268,13 @@ function getTodayDafYomi() {
 
 async function fbSave(uid, key, val) {
   // מגן גלובלי: אסור לכתוב לענן לפני שטעינת הנתונים הצליחה
-  if (!window._shasDataLoaded) { console.warn('fbSave blocked — data not loaded yet:', key); return; }
+  if (!window._shasDataLoaded) { console.warn('fbSave blocked — data not loaded yet:', key); return false; }
   try {
     const { db, doc, setDoc } = window._fb;
     const stored = typeof val === 'string' ? val : JSON.stringify(val);
     await setDoc(doc(db, 'users', uid), { [key]: stored }, { merge: true });
-  } catch(e) { console.error('save error', e); }
+    return true;
+  } catch(e) { console.error('save error', e); return false; }
 }
 async function fbLoad(uid) {
   try {
@@ -396,15 +397,34 @@ function App() {
   useEffect(() => { learnedRef.current = learned; }, [learned]);
   // מגן מפני דריסת נתוני ענן בנתונים ריקים — שמירה אוטומטית רק אחרי שהטעינה הצליחה
   const dataLoadedRef = useRef(false);
+  // שינויים מקומיים שעוד לא אושרו בשרת, לכל שדה (learned/reviews/hard). 0 = מסונכרן.
+  // כשאין שינוי ממתין — השרת קובע (כך ביטול סימון במכשיר אחד עובר לשני ולא "חוזר").
+  // כשיש שינוי ממתין — מיזוג union, כדי לא לאבד אף סימון.
+  const pendingRef = useRef({ learned: 0, reviews: 0, hard: 0 });
+  const seqRef = useRef(0);
+  const refs = { learned: learnedRef, reviews: reviewsRef, hard: hardRef };
+  function persist(field) {
+    const seq = ++seqRef.current;
+    pendingRef.current[field] = seq;
+    if (!user || !dataLoadedRef.current || !navigator.onLine) return;
+    fbSave(user.uid, 'shas-' + field, refs[field].current).then(ok => {
+      if (ok && pendingRef.current[field] === seq) pendingRef.current[field] = 0;
+    });
+  }
+  function flushPending(uid) {
+    for (const f in pendingRef.current) {
+      const seq = pendingRef.current[f];
+      if (!seq) continue;
+      fbSave(uid, 'shas-' + f, refs[f].current).then(ok => { if (ok && pendingRef.current[f] === seq) pendingRef.current[f] = 0; });
+    }
+  }
 
   useEffect(() => {
     if (!user) return;
     const uid = user.uid;
     const flushLearned = () => {
       if (!dataLoadedRef.current) return;
-      fbSave(uid, 'shas-learned', learnedRef.current);
-      fbSave(uid, 'shas-reviews', reviewsRef.current);
-      fbSave(uid, 'shas-hard', hardRef.current);
+      flushPending(uid); // רק מה שלא נשמר — מכשיר שלא שינה כלום לא דורס את הענן
     };
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') flushLearned();
@@ -421,9 +441,7 @@ function App() {
     const handleOnline = () => {
       setIsOnline(true);
       if (user && dataLoadedRef.current) {
-        fbSave(user.uid, 'shas-learned', learnedRef.current);
-        fbSave(user.uid, 'shas-reviews', reviewsRef.current);
-        fbSave(user.uid, 'shas-hard', hardRef.current);
+        flushPending(user.uid);
         if (streakRef.current) fbSave(user.uid, 'shas-streak', streakRef.current);
         if (Object.keys(notesRef.current).length) fbSave(user.uid, 'shas-notes', notesRef.current);
       }
@@ -500,8 +518,8 @@ function App() {
     });
   }, []);
 
-  // סנכרון חי בין מכשירים — ממזג (union) כל שינוי שמאושר בשרת. מתעלם מכתיבות שלנו ומהמטמון.
-  // מיזוג union לעולם לא מוחק סימון, כך שמכשיר אחד לא יכול לדרוס את מה שהשני סימן.
+  // סנכרון חי בין מכשירים — כל שינוי שמאושר בשרת. מתעלם מכתיבות שלנו ומהמטמון.
+  // אין שינוי מקומי ממתין → מצב השרת (כך גם ביטול סימון עובר). יש שינוי ממתין → union, לא מאבדים סימון.
   useEffect(() => {
     if (!user) return;
     const { db, doc, onSnapshot } = window._fb;
@@ -509,18 +527,22 @@ function App() {
       if (!snap.exists() || snap.metadata.hasPendingWrites || snap.metadata.fromCache) return;
       if (!window._shasDataLoaded) return; // רק אחרי שהטעינה הראשונית הצליחה
       const d = snap.data();
-      try {
-        const m = mergeInto(learnedRef.current, migrateKeys(d['shas-learned'] ? JSON.parse(d['shas-learned']) : null));
-        if (m) { learnedRef.current = m; setLearned(m); try { localStorage.setItem('shas-learned', JSON.stringify(m)); } catch(e){} }
-      } catch(e){}
-      try {
-        const m = mergeInto(reviewsRef.current, migrateKeys(d['shas-reviews'] ? JSON.parse(d['shas-reviews']) : null));
-        if (m) { reviewsRef.current = m; setReviews(m); }
-      } catch(e){}
-      try {
-        const m = mergeInto(hardRef.current, migrateKeys(d['shas-hard'] ? JSON.parse(d['shas-hard']) : null));
-        if (m) { hardRef.current = m; setHard(m); }
-      } catch(e){}
+      const setters = { learned: setLearned, reviews: setReviews, hard: setHard };
+      for (const f of ['learned', 'reviews', 'hard']) {
+        try {
+          const raw = d['shas-' + f];
+          if (!raw) continue;
+          const server = migrateKeys(JSON.parse(raw));
+          if (!server || typeof server !== 'object') continue;
+          const local = refs[f].current;
+          let next = null;
+          if (pendingRef.current[f]) next = mergeInto(local, server); // יש שינוי מקומי שטרם נשמר — לא מאבדים כלום
+          else if (JSON.stringify(server) !== JSON.stringify(local)) next = server; // מסונכרן — מאמצים את מצב השרת (כולל ביטולי סימון)
+          if (!next) continue;
+          refs[f].current = next; setters[f](next);
+          if (f === 'learned') { try { localStorage.setItem('shas-learned', JSON.stringify(next)); } catch(e){} }
+        } catch(e){}
+      }
     }, err => { console.warn('snapshot listener error', err); });
     return () => unsub();
   }, [user]);
@@ -556,21 +578,21 @@ function App() {
     learnedRef.current = nl;
     setLearned(nl);
     try { localStorage.setItem('shas-learned', JSON.stringify(nl)); } catch(e) {}
-    if (user && navigator.onLine && dataLoadedRef.current) fbSave(user.uid, 'shas-learned', nl);
+    persist('learned');
   }
 
   function markAll(tractate, dafim) {
     const nl = { ...learned };
     for (const d of dafList(TRACTATE_BY_NAME[tractate])) { nl[amudKey(tractate,d,'א')] = true; nl[amudKey(tractate,d,'ב')] = true; }
     learnedRef.current = nl;
-    setLearned(nl); if (user) fbSave(user.uid, 'shas-learned', nl);
+    setLearned(nl); persist('learned');
   }
 
   function unmarkAll(tractate, dafim) {
     const nl = { ...learned };
     for (const d of dafList(TRACTATE_BY_NAME[tractate])) { delete nl[amudKey(tractate,d,'א')]; delete nl[amudKey(tractate,d,'ב')]; }
     learnedRef.current = nl;
-    setLearned(nl); if (user) fbSave(user.uid, 'shas-learned', nl);
+    setLearned(nl); persist('learned');
   }
 
   function updateRange(name, updates) {
@@ -591,7 +613,7 @@ function App() {
     }
     learnedRef.current = nl;
     setLearned(nl);
-    if (user) fbSave(user.uid, 'shas-learned', nl);
+    persist('learned');
   }
 
   // ספירת עמודים שנלמדו לכל מסכת — מחושב פעם אחת בכל שינוי ב-learned (במקום בכל רינדור)
@@ -631,7 +653,7 @@ function App() {
     if (next === 1 && (nr[k] || 0) === 9) { delete nr[k]; } else { nr[k] = next; }
     reviewsRef.current = nr;
     setReviews(nr);
-    if (user && navigator.onLine) fbSave(user.uid, 'shas-reviews', nr);
+    persist('reviews');
   }
 
   function toggleHard(tractate, daf, amud) {
@@ -641,24 +663,25 @@ function App() {
     if (nh[k]) { delete nh[k]; } else { nh[k] = true; }
     hardRef.current = nh;
     setHard(nh);
-    if (user && navigator.onLine) fbSave(user.uid, 'shas-hard', nh);
+    persist('hard');
   }
 
   async function syncToCloud() {
     if (!user) return;
     if (!dataLoadedRef.current) { setBackupMsg({ ok: false, text: '✗ הנתונים לא נטענו' }); setTimeout(() => setBackupMsg(null), 2500); return; }
-    try {
-      await fbSave(user.uid, 'shas-learned', learnedRef.current);
-      await fbSave(user.uid, 'shas-reviews', reviewsRef.current);
-      await fbSave(user.uid, 'shas-hard', hardRef.current);
-      await fbSave(user.uid, 'shas-journal', journal);
-      if (streakRef.current) await fbSave(user.uid, 'shas-streak', streakRef.current);
-      if (Object.keys(notesRef.current).length) await fbSave(user.uid, 'shas-notes', notesRef.current);
-      if (targetDate) await fbSave(user.uid, 'shas-target', targetDate);
-      setBackupMsg({ ok: true, text: '✓ גובה' });
-    } catch(e) {
-      setBackupMsg({ ok: false, text: '✗ שגיאה' });
-    }
+    const seqs = { ...pendingRef.current };
+    const results = await Promise.all([
+      fbSave(user.uid, 'shas-learned', learnedRef.current),
+      fbSave(user.uid, 'shas-reviews', reviewsRef.current),
+      fbSave(user.uid, 'shas-hard', hardRef.current),
+      fbSave(user.uid, 'shas-journal', journal),
+      streakRef.current ? fbSave(user.uid, 'shas-streak', streakRef.current) : true,
+      Object.keys(notesRef.current).length ? fbSave(user.uid, 'shas-notes', notesRef.current) : true,
+      targetDate ? fbSave(user.uid, 'shas-target', targetDate) : true,
+    ]);
+    const ok = results.every(Boolean);
+    if (ok) for (const f in seqs) if (pendingRef.current[f] === seqs[f]) pendingRef.current[f] = 0;
+    setBackupMsg(ok ? { ok: true, text: '✓ גובה' } : { ok: false, text: '✗ שגיאה' });
     setTimeout(() => setBackupMsg(null), 2500);
   }
 

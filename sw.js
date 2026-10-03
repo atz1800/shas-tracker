@@ -1,4 +1,4 @@
-const CACHE = 'shas-v22';
+const CACHE = 'shas-v23';
 const RUNTIME = 'shas-runtime-v1';
 const ASSETS = ['./', './index.html', './privacy.html', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './manifest.json'];
 // ספריות חיצוניות בגרסאות קבועות — שומרים במטמון כדי שהאפליקציה תיפתח גם בלי אינטרנט

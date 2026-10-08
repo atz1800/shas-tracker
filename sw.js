@@ -1,4 +1,4 @@
-const CACHE = 'shas-v25';
+const CACHE = 'shas-v26';
 const RUNTIME = 'shas-runtime-v1';
 const TEXTS = 'shas-texts-v1'; // טקסטים מספריא שנשמרים ממסך העיון
 const ASSETS = ['./', './index.html', './privacy.html', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './manifest.json'];

@@ -106,7 +106,7 @@ input:focus, textarea:focus { outline:none; }
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
-const APP_VERSION = 'v26'; // חובה לעדכן יחד עם CACHE ב-sw.js
+const APP_VERSION = 'v27'; // חובה לעדכן יחד עם CACHE ב-sw.js
 
 const SHAS = [
   { seder: 'סדר זרעים', tractates: [{ name: 'ברכות', dafim: 63 }]},
@@ -357,7 +357,8 @@ const ICONS = {
 };
 
 /* ═══ מסך עיון: גמרא למעלה, ביאור שטיינזלץ למטה (מספריא) ═══
-   כל המסכת ברצף אחד, עם כותרות פרקים וניווט לפרק/דף. כל מסכתות הבבלי שיש להן דפים בספריא (שקלים — ירושלמי, בלי).
+   כל המסכת ברצף אחד, עם כותרות פרקים וניווט לפרק/דף. שקלים — בספריא רק ירושלמי, מחולק לפרק/הלכה ולא לדפים:
+   שם כל ״עמוד״ הוא פרק שלם (perek), עם כותרות הלכה, בלי רשת דפים ובלי סימון ״נלמד״ (המעקב לפי דפי וילנא).
    הפרקים (שם ומיקום מדויק) נלקחים ממבנה הפרקים של ספריא. chapters = [שם, עמוד התחלה] — שמות שנבדקו,
    וגיבוי למיקום כשספריא לא זמינה (הפרק מתחיל אחרי ״הדרן עלך״ שבעמוד ההתחלה). */
 const READER_CHAPTERS = {
@@ -365,12 +366,16 @@ const READER_CHAPTERS = {
     ['אור לארבעה עשר', '2a'], ['כל שעה', '21a'], ['אלו עוברין', '42a'], ['מקום שנהגו', '50a'], ['תמיד נשחט', '58a'],
     ['אלו דברים', '65b'], ['כיצד צולין', '74a'], ['האשה', '87a'], ['מי שהיה טמא', '92b'], ['ערבי פסחים', '99b'],
   ],
+  'שקלים': [
+    ['באחד באדר', '1'], ['מצרפין', '2'], ['בשלשה פרקים', '3'], ['התרומה', '4'],
+    ['אלו הן הממונים', '5'], ['שלשה עשר שופרות', '6'], ['מעות שנמצאו', '7'], ['כל הרוקין', '8'],
+  ],
 };
 // מסכתות שהעמוד האחרון שלהן הוא ע״א (בשאר — ע״ב). עמוד שבכל זאת לא קיים בספריא — מדולג.
 const READER_ENDS_A = ['ברכות','עירובין','יומא','ראש השנה','תענית','מגילה','מועד קטן','חגיגה','בבא מציעא','הוריות','מנחות','חולין','בכורות','ערכין','תמורה','מעילה','נידה'];
 const READER_STARTS_B = ['תמיד']; // תמיד מתחילה בכ״ה ע״ב
-const READER_TRACTATES = Object.fromEntries(Object.entries(TRACTATE_LINKS).filter(([, l]) => !l.noDaf)
-  .map(([name, l]) => [name, { book: l.sefaria, chapters: READER_CHAPTERS[name] || null }]));
+const READER_TRACTATES = Object.fromEntries(Object.entries(TRACTATE_LINKS)
+  .map(([name, l]) => [name, { book: l.sefaria, chapters: READER_CHAPTERS[name] || null, perek: !!l.noDaf }]));
 const READER_CACHE = 'shas-texts-v1'; // נשמר גם ב-sw.js — טקסט שנפתח פעם אחת זמין אופליין
 const SEFARIA = 'https://www.sefaria.org/api/';
 
@@ -412,6 +417,8 @@ function amudSeq(from, to) {
 }
 const hebNum = n => { const h = HEB[n] || ''; return h.length > 1 ? h.slice(0, -1) + '״' + h.slice(-1) : h + '׳'; };
 function amudLabel(a) { return 'דף ' + hebNum(parseInt(a, 10)) + (a.endsWith('b') ? ' ע״ב' : ' ע״א'); }
+// תווית ל״עמוד״ של מסכת: דף ועמוד, או פרק (שקלים)
+function unitLabel(tractate, u) { return READER_TRACTATES[tractate] && READER_TRACTATES[tractate].perek ? 'פרק ' + hebNum(+u) : amudLabel(u); }
 
 // שם פרק מספריא — בלי ״פרק ראשון״/״פרק א׳״ שבתחילתו (השם עצמו נשאר כמו שהוא)
 const ORDINALS = 'ראשון שני שלישי רביעי חמישי שישי ששי שביעי שמיני תשיעי עשירי'.split(' ');
@@ -422,7 +429,8 @@ function cleanChapName(t) {
 }
 // פרקי המסכת: [{ n, name, start:'21a', seg:5|null }] — seg ממבנה הפרקים של ספריא; null = לפי ״הדרן עלך״. [] = לא ידוע
 async function loadChapters(cfg) {
-  const local = (cfg.chapters || []).map(([name, start], i) => ({ n: i + 1, name, start, seg: null }));
+  const local = (cfg.chapters || []).map(([name, start], i) => ({ n: i + 1, name, start, seg: cfg.perek ? 1 : null }));
+  if (cfg.perek) return local;
   try {
     const idx = await sefariaJson('v2/raw/index/' + cfg.book);
     const nodes = (idx.alt_structs && idx.alt_structs.Chapters && idx.alt_structs.Chapters.nodes) || [];
@@ -436,6 +444,27 @@ async function loadChapters(cfg) {
     if (out.length) return out;
   } catch(e) {}
   return local;
+}
+
+// ירושלמי: פרק שלם = [הלכה][קטע]. משטחים לרשימת קטעים, ושומרים איפה מתחילה כל הלכה.
+// שטיינזלץ מיושר לקטעים כשהחלוקה זהה; אחרת — כל ביאור ההלכה תחת הקטע הראשון שלה.
+async function loadPerek(book, perek) {
+  const [g, s] = await Promise.all([
+    sefariaJson('v3/texts/' + book + '.' + perek + '?version=hebrew'),
+    sefariaJson('v3/texts/Steinsaltz_on_' + book + '.' + perek + '?version=hebrew').catch(() => null),
+  ]);
+  const arr = v => Array.isArray(v) ? v : (v ? [v] : []);
+  const gH = arr(g.versions && g.versions[0] && g.versions[0].text), sH = arr(s && s.versions && s.versions[0] && s.versions[0].text);
+  const gem = [], st = [], hal = [];
+  gH.forEach((h, hi) => {
+    const segs = arr(h), ss = arr(sH[hi]);
+    segs.forEach((x, i) => {
+      hal.push(i === 0 ? hi + 1 : 0);
+      gem.push(cleanSefariaHtml(x));
+      st.push(ss.length === segs.length ? cleanSefariaHtml(ss[i]) : i === 0 ? ss.map(cleanSefariaHtml).filter(Boolean).join('<br><br>') : '');
+    });
+  });
+  return { gem, st, hal };
 }
 
 async function loadAmud(book, amud) {
@@ -452,7 +481,8 @@ async function loadAmud(book, amud) {
 function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onClose }) {
   const cfg = READER_TRACTATES[tractate];
   const tInfo = TRACTATE_BY_NAME[tractate];
-  const seq = useMemo(() => amudSeq(firstDaf(tInfo) + (READER_STARTS_B.includes(tractate) ? 'b' : 'a'),
+  const label = u => unitLabel(tractate, u);
+  const seq = useMemo(() => cfg.perek ? cfg.chapters.map((_, i) => String(i + 1)) : amudSeq(firstDaf(tInfo) + (READER_STARTS_B.includes(tractate) ? 'b' : 'a'),
     (firstDaf(tInfo) + tInfo.dafim - 1) + (READER_ENDS_A.includes(tractate) ? 'a' : 'b')), [tractate]);
   const [chapters, setChapters] = useState(null);
   const [shown, setShown] = useState([]);         // עמודים שמוצגים, ברצף
@@ -487,7 +517,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
 
   async function fetchAmud(a) {
     if (textsRef.current[a]) return textsRef.current[a];
-    const t = await loadAmud(cfg.book, a);
+    const t = await (cfg.perek ? loadPerek : loadAmud)(cfg.book, a);
     textsRef.current = { ...textsRef.current, [a]: t };
     setTexts(textsRef.current);
     return t;
@@ -518,7 +548,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
       await Promise.all(pair.map(fetchAmud));
       jumpRef.current = a + ':' + (seg || 1);
       setShown(pair);
-    } catch(e) { setErr('לא הצלחנו לטעון את ' + amudLabel(a) + ' מספריא. בדוק חיבור לאינטרנט ונסה שוב.'); }
+    } catch(e) { setErr('לא הצלחנו לטעון את ' + label(a) + ' מספריא. בדוק חיבור לאינטרנט ונסה שוב.'); }
     busyRef.current = false; setBusy(false);
   }
 
@@ -649,7 +679,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
     const from = parseInt(c.start, 10), next = chapters[i + 1];
     const to = next ? parseInt(next.start, 10) - (next.start.endsWith('a') && chapSeg(next) === 1 ? 1 : 0) : lastDaf;
     const dafim = []; for (let d = from; d <= to; d++) dafim.push(d);
-    return { c, dafim };
+    return { c, dafim: cfg.perek ? [] : dafim };
   });
   const amudBtn = (d, side) => {
     const a = d + side, cur = a === activeAmud, done = amudDone(a);
@@ -669,7 +699,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
         <button onClick={close} aria-label="סגור" style={{ ...btn, fontSize:'1.05rem', padding:'0.15rem 0.55rem' }}>→</button>
         <button onClick={() => setNav(n => !n)} aria-expanded={nav} style={{ flex:1, minWidth:0, background:'none', border:'none', color:'inherit', textAlign:'right', cursor:'pointer', padding:0, fontFamily:'inherit' }}>
           <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'1.05rem', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{tractate}{chap ? ' · ' + (chap.name || 'פרק ' + hebNum(chap.n)) : ''}</div>
-          <div style={{ fontSize:'0.74rem', color:'#e8c040', fontWeight:600 }}>{activeAmud ? amudLabel(activeAmud) : ''} <span style={{ color:'#b8ceff' }}>{nav ? '▲' : '▼'}</span></div>
+          <div style={{ fontSize:'0.74rem', color:'#e8c040', fontWeight:600 }}>{activeAmud ? label(activeAmud) : ''} <span style={{ color:'#b8ceff' }}>{nav ? '▲' : '▼'}</span></div>
         </button>
         <button onClick={() => setNav(n => !n)} aria-label="ניווט לפרק או דף" style={{ ...btn, background: nav ? '#e8f0ff' : btn.background, color: nav ? '#1a2d6e' : btn.color, fontWeight:700 }}>☰ דפים</button>
         <button onClick={() => active && onStop(isStop ? null : active)} disabled={!active}
@@ -687,7 +717,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
       {/* ניווט */}
       {nav && <div ref={navRef} style={{ position:'absolute', inset:0, zIndex:3, background:'#f2f5fc', overflowY:'auto', padding:'0.8rem 1rem 2rem' }}>
         <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap', alignItems:'center', marginBottom:'0.9rem' }}>
-          {stopKey && <button onClick={() => jumpTo(stopKey.split(':')[0], +stopKey.split(':')[1])} style={{ background:'#fff4d6', border:'1px solid #e8c040', borderRadius:99, color:'#8a6000', fontWeight:700, fontSize:'0.82rem', padding:'0.35rem 0.9rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>📍 לסימנייה · {amudLabel(stopKey.split(':')[0]).replace('דף ', '')}</button>}
+          {stopKey && <button onClick={() => jumpTo(stopKey.split(':')[0], +stopKey.split(':')[1])} style={{ background:'#fff4d6', border:'1px solid #e8c040', borderRadius:99, color:'#8a6000', fontWeight:700, fontSize:'0.82rem', padding:'0.35rem 0.9rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>📍 לסימנייה · {label(stopKey.split(':')[0]).replace('דף ', '')}</button>}
           <span style={{ marginRight:'auto', display:'inline-flex', alignItems:'center', gap:'0.35rem', fontSize:'0.8rem', color:'#3a4f7a' }}>גופן
             <button onClick={() => setFont(f => Math.max(1, +(f - 0.1).toFixed(2)))} aria-label="הקטן גופן" style={{ border:'1px solid #d8e0f0', background:'#fff', borderRadius:6, padding:'0.2rem 0.55rem', cursor:'pointer' }}>א-</button>
             <button onClick={() => setFont(f => Math.min(2, +(f + 0.1).toFixed(2)))} aria-label="הגדל גופן" style={{ border:'1px solid #d8e0f0', background:'#fff', borderRadius:6, padding:'0.2rem 0.55rem', cursor:'pointer' }}>א+</button>
@@ -700,7 +730,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
               style={{ width:'100%', display:'flex', alignItems:'baseline', gap:'0.5rem', background: chap && chap.n === c.n ? '#e3edfc' : '#fff', border:'1px solid #d8e0f0', borderRadius:10, padding:'0.5rem 0.8rem', cursor:'pointer', marginBottom:'0.45rem', textAlign:'right', fontFamily:"'Heebo',sans-serif" }}>
               <span style={{ fontSize:'0.75rem', color:'#8a6000', fontWeight:700 }}>פרק {hebNum(c.n)}</span>
               <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.05rem', fontWeight:700, color:'#1a2340' }}>{c.name}</span>
-              <span style={{ marginRight:'auto', fontSize:'0.72rem', color:'#7a8aaa' }}>מ{amudLabel(c.start).replace('דף ', '')}</span>
+              {!cfg.perek && <span style={{ marginRight:'auto', fontSize:'0.72rem', color:'#7a8aaa' }}>מ{amudLabel(c.start).replace('דף ', '')}</span>}
             </button>}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(78px, 1fr))', gap:'0.35rem' }}>
               {dafim.map(d => (
@@ -718,17 +748,18 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
       <div ref={topRef} onScroll={onTopScroll} style={{ flex: stOpen ? '1 1 52%' : '1 1 100%', overflowY:'auto', padding:'0.8rem 1rem 40vh', WebkitOverflowScrolling:'touch' }}>
         {!shown.length && !err && <div style={{ textAlign:'center', color:'#7a8aaa', padding:'3rem 0' }}>טוען מספריא...</div>}
         {!atStart && <div style={{ textAlign:'center', marginBottom:'0.6rem' }}>
-          <button onClick={loadPrev} disabled={busy} style={{ background:'#eef2f9', border:'none', borderRadius:99, color:'#3d5499', fontSize:'0.78rem', fontWeight:600, padding:'0.3rem 0.9rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>▲ עמוד קודם</button>
+          <button onClick={loadPrev} disabled={busy} style={{ background:'#eef2f9', border:'none', borderRadius:99, color:'#3d5499', fontSize:'0.78rem', fontWeight:600, padding:'0.3rem 0.9rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>▲ {cfg.perek ? 'פרק קודם' : 'עמוד קודם'}</button>
         </div>}
         {shown.map(a => !texts[a] || !texts[a].gem.length ? null : (
           <div key={a}>
-            <div style={{ textAlign:'center', color:'#8a6000', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'0.95rem', margin:'0.4rem 0 0.5rem', letterSpacing:'0.02em' }}>— {amudLabel(a)} —</div>
+            {!cfg.perek && <div style={{ textAlign:'center', color:'#8a6000', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'0.95rem', margin:'0.4rem 0 0.5rem', letterSpacing:'0.02em' }}>— {amudLabel(a)} —</div>}
             <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize: font + 'rem', lineHeight:2, textAlign:'justify', color:'#1a2340' }}>
               {segsOf(a).map(k => {
                 const key = a + ':' + k, on = key === active, stop = key === stopKey, ch = chapStartsAt(a, k);
                 return (
                   <React.Fragment key={key}>
                     {ch && chapHeading(ch)}
+                    {texts[a].hal && texts[a].hal[k - 1] > 0 && <div style={{ fontFamily:"'Heebo',sans-serif", fontSize:'0.78rem', fontWeight:700, color:'#8a6000', margin:'0.5rem 0 0.1rem' }}>הלכה {hebNum(texts[a].hal[k - 1])}</div>}
                     <span ref={el => { segEls.current[key] = el; }} onClick={() => activate(key, false)}
                       style={{ background: on ? '#e3edfc' : stop ? '#fff4d6' : 'transparent', borderRadius:4, cursor:'pointer', transition:'background 0.2s', boxDecorationBreak:'clone', WebkitBoxDecorationBreak:'clone' }}>
                       {stop && <span aria-label="כאן עצרת" style={{ fontSize:'0.75em' }}>📍</span>}
@@ -738,11 +769,11 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
                 );
               })}
             </div>
-            <div style={{ textAlign:'center', margin:'0.9rem 0 1.2rem' }}>
+            {!cfg.perek && <div style={{ textAlign:'center', margin:'0.9rem 0 1.2rem' }}>
               <button onClick={() => toggleDone(a)} style={{ background: amudDone(a) ? '#1a7a50' : '#fff', color: amudDone(a) ? '#fff' : '#1a7a50', border:'1.5px solid #1a7a50', borderRadius:99, fontSize:'0.8rem', fontWeight:700, padding:'0.3rem 1rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>
                 {amudDone(a) ? '✓ ' + amudLabel(a) + ' סומן כנלמד' : 'סיימתי את ' + amudLabel(a) + ' — סמן כנלמד'}
               </button>
-            </div>
+            </div>}
           </div>
         ))}
         {atEnd && shown.length > 0 && <div style={{ textAlign:'center', color:'#8a6000', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, padding:'1rem 0' }}>הדרן עלך מסכת {tractate}</div>}
@@ -1303,7 +1334,7 @@ function App() {
                             {READER_TRACTATES[t.name] && (() => { const bm = readerMarks[t.name]; const at = bm && (bm.stop || bm.last); return (
                               <button onClick={e => { e.stopPropagation(); setReaderOpen(t.name); }} title={'עיון במסכת ' + t.name + ' עם ביאור שטיינזלץ'}
                                 style={{ fontSize:'0.72rem', color:'#fff', background:'#2a40a0', border:'none', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                                📖 {at ? 'המשך · ' + amudLabel(at.split(':')[0]).replace('דף ', '') : 'עיון'}
+                                📖 {at ? 'המשך · ' + unitLabel(t.name, at.split(':')[0]).replace('דף ', '') : 'עיון'}
                               </button>); })()}
                             {TRACTATE_LINKS[t.name] && (<>
                               <a href={'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[t.name].sefaria + '?lang=he'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>שטיינ׳</a>

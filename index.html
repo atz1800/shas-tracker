@@ -106,7 +106,7 @@ input:focus, textarea:focus { outline:none; }
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
-const APP_VERSION = 'v24'; // חובה לעדכן יחד עם CACHE ב-sw.js
+const APP_VERSION = 'v25'; // חובה לעדכן יחד עם CACHE ב-sw.js
 
 const SHAS = [
   { seder: 'סדר זרעים', tractates: [{ name: 'ברכות', dafim: 63 }]},
@@ -357,10 +357,14 @@ const ICONS = {
 };
 
 /* ═══ מסך עיון: גמרא למעלה, ביאור שטיינזלץ למטה (מספריא) ═══
-   פיילוט: פסחים פרק ב׳. כדי להוסיף פרק — מוסיפים שורה ל-READER_CHAPTERS.
-   from/to = גבולות לגיבוי; הגבול המדויק (סגמנט) נלקח ממבנה הפרקים של ספריא, ואם לא — לפי ״הדרן עלך״. */
-const READER_CHAPTERS = {
-  'פסחים': { book: 'Pesachim', chapter: 2, title: 'פרק כל שעה', from: '21a', to: '42a' },
+   כל המסכת ברצף אחד, עם כותרות פרקים וניווט לפרק/דף. כדי להוסיף מסכת — מוסיפים שורה ל-READER_TRACTATES.
+   chapters = [שם, עמוד התחלה] — גיבוי בלבד: מיקום הפרק המדויק (סגמנט) נלקח ממבנה הפרקים של ספריא,
+   ואם הוא לא זמין — הפרק מתחיל אחרי ״הדרן עלך״ שבעמוד ההתחלה. */
+const READER_TRACTATES = {
+  'פסחים': { book: 'Pesachim', chapters: [
+    ['אור לארבעה עשר', '2a'], ['כל שעה', '21a'], ['אלו עוברין', '42a'], ['מקום שנהגו', '50a'], ['תמיד נשחט', '58a'],
+    ['אלו דברים', '65b'], ['כיצד צולין', '74a'], ['האשה', '87a'], ['מי שהיה טמא', '92b'], ['ערבי פסחים', '99b'],
+  ]},
 };
 const READER_CACHE = 'shas-texts-v1'; // נשמר גם ב-sw.js — טקסט שנפתח פעם אחת זמין אופליין
 const SEFARIA = 'https://www.sefaria.org/api/';
@@ -401,21 +405,21 @@ function amudSeq(from, to) {
   while (d < e.d || (d === e.d && (!b || e.b))) { out.push(d + (b ? 'b' : 'a')); if (b) d++; b = !b; }
   return out;
 }
-function amudLabel(a) {
-  const h = HEB[parseInt(a, 10)] || '';
-  return 'דף ' + (h.length > 1 ? h.slice(0, -1) + '״' + h.slice(-1) : h + '׳') + (a.endsWith('b') ? ' ע״ב' : ' ע״א');
-}
+const hebNum = n => { const h = HEB[n] || ''; return h.length > 1 ? h.slice(0, -1) + '״' + h.slice(-1) : h + '׳'; };
+function amudLabel(a) { return 'דף ' + hebNum(parseInt(a, 10)) + (a.endsWith('b') ? ' ע״ב' : ' ע״א'); }
 
-// גבולות הפרק בסגמנטים: { from:'21a', fromSeg:12, to:'42a', toSeg:4 } (1-based). null = לא ידוע
-async function chapterRange(cfg) {
+// פרקי המסכת: [{ n, name, start:'21a', seg:5|null }] — seg ממבנה הפרקים של ספריא; null = לפי ״הדרן עלך״
+async function loadChapters(cfg) {
+  const base = cfg.chapters.map(([name, start], i) => ({ n: i + 1, name, start, seg: null }));
   try {
     const idx = await sefariaJson('v2/raw/index/' + cfg.book);
     const nodes = (idx.alt_structs && idx.alt_structs.Chapters && idx.alt_structs.Chapters.nodes) || [];
-    const ref = nodes[cfg.chapter - 1] && nodes[cfg.chapter - 1].wholeRef;
-    const m = ref && /(\d+[ab])(?::(\d+))?-(\d+[ab])(?::(\d+))?/.exec(ref);
-    if (m) return { from: m[1], fromSeg: +(m[2] || 1), to: m[3], toSeg: m[4] ? +m[4] : Infinity };
+    if (nodes.length === base.length) nodes.forEach((nd, i) => {
+      const m = nd.wholeRef && /(\d+[ab])(?::(\d+))?-/.exec(nd.wholeRef);
+      if (m) { base[i].start = m[1]; base[i].seg = +(m[2] || 1); }
+    });
   } catch(e) {}
-  return null;
+  return base;
 }
 
 async function loadAmud(book, amud) {
@@ -429,19 +433,24 @@ async function loadAmud(book, amud) {
 }
 
 function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onClose }) {
-  const cfg = READER_CHAPTERS[tractate];
-  const [range, setRange] = useState(null);       // { seq:[...amudim], fromSeg, toSeg }
+  const cfg = READER_TRACTATES[tractate];
+  const tInfo = TRACTATE_BY_NAME[tractate];
+  const seq = useMemo(() => amudSeq(firstDaf(tInfo) + 'a', (firstDaf(tInfo) + tInfo.dafim - 1) + 'b'), [tractate]);
+  const [chapters, setChapters] = useState(null);
   const [shown, setShown] = useState([]);         // עמודים שמוצגים, ברצף
   const [texts, setTexts] = useState({});         // amud → { gem, st }
+  const textsRef = useRef({});
   const [active, setActive] = useState(null);     // '21b:4'
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
   const [stOpen, setStOpen] = useState(true);
+  const [nav, setNav] = useState(false);
   const [font, setFont] = useState(() => { try { return +localStorage.getItem('reader-font') || 1.3; } catch(e) { return 1.3; } });
-  const topRef = useRef(null), botRef = useRef(null);
+  const topRef = useRef(null), botRef = useRef(null), navRef = useRef(null);
   const segEls = useRef({}), stEls = useRef({});
   const prependRef = useRef(null);
-  const resumedRef = useRef(false);
+  const jumpRef = useRef(null);                    // קטע לגלול אליו אחרי החלפת העמודים המוצגים
+  const busyRef = useRef(false);
   const stopKey = bookmark && bookmark.stop;
   const startKey = (bookmark && (bookmark.stop || bookmark.last)) || null;
 
@@ -459,76 +468,75 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
   useEffect(() => { try { localStorage.setItem('reader-font', String(font)); } catch(e) {} }, [font]);
 
   async function fetchAmud(a) {
-    if (texts[a]) return texts[a];
+    if (textsRef.current[a]) return textsRef.current[a];
     const t = await loadAmud(cfg.book, a);
-    setTexts(x => ({ ...x, [a]: t }));
+    textsRef.current = { ...textsRef.current, [a]: t };
+    setTexts(textsRef.current);
     return t;
   }
 
-  // טעינה ראשונה: גבולות הפרק, ואז העמוד שבו עצרת (או תחילת הפרק) והעמוד שאחריו
-  async function init() {
-    setErr(null); setBusy(true);
+  // תחילת פרק בתוך העמוד (1-based). בלי מבנה מספריא — הסגמנט שאחרי ״הדרן עלך״
+  function chapSeg(ch) {
+    if (ch.seg) return ch.seg;
+    if (ch.n === 1) return 1;
+    const t = textsRef.current[ch.start];
+    const h = t ? t.gem.findIndex(s => stripNiqqud(s).includes('הדרן עלך')) : -1;
+    return h >= 0 ? h + 2 : 1;
+  }
+  const posOf = key => { const [a, k] = key.split(':'); return seq.indexOf(a) * 10000 + (+k || 1); };
+  const curChap = (key) => {
+    if (!chapters) return null;
+    let cur = chapters[0];
+    if (key) for (const ch of chapters) if (posOf(ch.start + ':' + chapSeg(ch)) <= posOf(key)) cur = ch;
+    return cur;
+  };
+
+  // מציג את amud והעמוד שאחריו, וגולל לקטע seg (ברירת מחדל: ראש העמוד)
+  async function jumpTo(a, seg) {
+    busyRef.current = true; setBusy(true); setErr(null); setNav(false);
     try {
-      const r = await chapterRange(cfg);
-      const from = r ? r.from : cfg.from, to = r ? r.to : cfg.to;
-      const seq = amudSeq(from, to);
-      const rng = { seq, fromSeg: r ? r.fromSeg : null, toSeg: r ? r.toSeg : null };
-      // אין מבנה פרקים — גבולות לפי ״הדרן עלך״ בעמוד הראשון/האחרון
-      if (!r) {
-        const [f, l] = await Promise.all([fetchAmud(seq[0]), fetchAmud(seq[seq.length - 1])]);
-        const hf = f.gem.findIndex(s => stripNiqqud(s).includes('הדרן עלך'));
-        const hl = l.gem.findIndex(s => stripNiqqud(s).includes('הדרן עלך'));
-        rng.fromSeg = hf >= 0 ? hf + 2 : 1;
-        rng.toSeg = hl >= 0 ? hl + 1 : Infinity;
-      }
-      const startAmud = startKey && seq.includes(startKey.split(':')[0]) ? startKey.split(':')[0] : seq[0];
-      const i = seq.indexOf(startAmud);
-      const first = seq.slice(i, i + 2);
-      await Promise.all(first.map(fetchAmud));
-      setRange(rng); setShown(first);
-    } catch(e) { setErr('לא הצלחנו לטעון את הטקסט מספריא. בדוק חיבור לאינטרנט ונסה שוב.'); }
-    setBusy(false);
+      const i = seq.indexOf(a);
+      const pair = seq.slice(i, i + 2);
+      await Promise.all(pair.map(fetchAmud));
+      jumpRef.current = a + ':' + (seg || 1);
+      setShown(pair);
+    } catch(e) { setErr('לא הצלחנו לטעון את ' + amudLabel(a) + ' מספריא. בדוק חיבור לאינטרנט ונסה שוב.'); }
+    busyRef.current = false; setBusy(false);
+  }
+
+  // טעינה ראשונה: פרקים, ואז המקום שבו עצרת (או תחילת המסכת)
+  async function init() {
+    const ch = await loadChapters(cfg);
+    setChapters(ch);
+    const a = startKey && seq.includes(startKey.split(':')[0]) ? startKey.split(':')[0] : seq[0];
+    await jumpTo(a, startKey && a === startKey.split(':')[0] ? +startKey.split(':')[1] : 1);
   }
   useEffect(() => { init(); }, []);
 
-  // סגמנטים בתוך גבולות הפרק
-  function segsOf(a) {
-    const t = texts[a]; if (!t || !range) return [];
-    const n = t.gem.length, seq = range.seq;
-    const lo = a === seq[0] ? (range.fromSeg || 1) : 1;
-    const hi = a === seq[seq.length - 1] ? Math.min(n, range.toSeg || n) : n;
-    const out = [];
-    for (let k = lo; k <= hi; k++) out.push(k);
-    return out;
-  }
+  const segsOf = a => { const t = texts[a]; return t ? t.gem.map((_, i) => i + 1) : []; };
 
   async function loadNext() {
-    if (busy || !range || !shown.length) return;
-    const seq = range.seq, i = seq.indexOf(shown[shown.length - 1]);
+    if (busyRef.current || !shown.length) return;
+    const i = seq.indexOf(shown[shown.length - 1]);
     if (i < 0 || i >= seq.length - 1) return;
-    setBusy(true);
-    try { const a = seq[i + 1]; await fetchAmud(a); setShown(s => s.includes(a) ? s : [...s, a]); }
+    busyRef.current = true; setBusy(true);
+    try { const a = seq[i + 1]; await fetchAmud(a); setShown(s => s[s.length - 1] === seq[i] ? [...s, a] : s); }
     catch(e) { setErr('טעינת העמוד הבא נכשלה — גלול שוב כדי לנסות.'); }
-    setBusy(false);
+    busyRef.current = false; setBusy(false);
   }
   async function loadPrev() {
-    if (busy || !range || !shown.length) return;
-    const seq = range.seq, i = seq.indexOf(shown[0]);
+    if (busyRef.current || !shown.length) return;
+    const i = seq.indexOf(shown[0]);
     if (i <= 0) return;
-    setBusy(true);
+    busyRef.current = true; setBusy(true);
     try {
       const a = seq[i - 1]; await fetchAmud(a);
       const el = topRef.current;
-      prependRef.current = el ? el.scrollHeight - el.scrollTop : null;
-      setShown(s => s.includes(a) ? s : [a, ...s]);
+      prependRef.current = el ? { a, h: el.scrollHeight - el.scrollTop } : null;
+      setShown(s => s[0] === seq[i] ? [a, ...s] : s);
     } catch(e) { setErr('טעינת העמוד הקודם נכשלה.'); }
-    setBusy(false);
+    busyRef.current = false; setBusy(false);
   }
-  // אחרי הוספת עמוד למעלה — שומרים על מקום הקריאה
-  React.useLayoutEffect(() => {
-    const el = topRef.current;
-    if (el && prependRef.current != null) { el.scrollTop = el.scrollHeight - prependRef.current; prependRef.current = null; if (active) scrollBotTo(active, false); }
-  }, [shown]);
 
   function scrollBotTo(key, smooth) {
     const box = botRef.current, el = stEls.current[key];
@@ -547,18 +555,31 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
     if (fromBottom) scrollTopTo(key); else scrollBotTo(key, true);
   }
 
-  // חזרה למקום שבו עצרת, פעם אחת אחרי הטעינה
-  useEffect(() => {
-    if (resumedRef.current || !shown.length) return;
-    resumedRef.current = true;
-    const key = startKey && segEls.current[startKey] ? startKey : null;
-    const first = key || (shown[0] + ':' + (segsOf(shown[0])[0] || 1));
-    setActive(first);
-    requestAnimationFrame(() => { if (key) scrollTopTo(key); scrollBotTo(first, false); });
+  React.useLayoutEffect(() => {
+    const el = topRef.current; if (!el) return;
+    // אחרי הוספת עמוד למעלה — שומרים על מקום הקריאה
+    const pre = prependRef.current; prependRef.current = null;
+    if (pre && shown[0] === pre.a) { el.scrollTop = el.scrollHeight - pre.h; if (active) scrollBotTo(active, false); }
+    // אחרי קפיצה (פתיחה, ניווט) — אל הקטע המבוקש
+    const key = jumpRef.current;
+    if (key) {
+      jumpRef.current = null;
+      const k = segEls.current[key] ? key : shown[0] + ':1';
+      el.scrollTop = 0;
+      if (k.split(':')[1] !== '1') scrollTopTo(k);
+      setActive(k); onPos(k);
+      requestAnimationFrame(() => scrollBotTo(k, false));
+    }
   }, [shown]);
 
   // פתיחה מחדש של חלון הביאור — מיד אל הקטע הפעיל
   useEffect(() => { if (stOpen && active) requestAnimationFrame(() => scrollBotTo(active, false)); }, [stOpen]);
+  // חלון הניווט נפתח על הפרק הנוכחי
+  useEffect(() => {
+    if (!nav || !navRef.current) return;
+    const el = navRef.current.querySelector('[data-cur="1"]');
+    if (el) el.scrollIntoView({ block: 'center' });
+  }, [nav]);
 
   // גלילת הגמרא: הסגמנט שעל ״קו הקריאה״ (רבע מגובה החלון) הוא הפעיל, והביאור עוקב אחריו
   const rafRef = useRef(0);
@@ -566,7 +587,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
     if (rafRef.current) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
-      const box = topRef.current; if (!box) return;
+      const box = topRef.current; if (!box || jumpRef.current) return;
       if (box.scrollTop + box.clientHeight > box.scrollHeight - 500) loadNext();
       const line = box.getBoundingClientRect().top + box.clientHeight * 0.25;
       let cur = null;
@@ -579,40 +600,94 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
   }
 
   const activeAmud = active ? active.split(':')[0] : shown[0];
-  const seq = range ? range.seq : [];
+  const chap = curChap(active);
   const atStart = !shown.length || seq.indexOf(shown[0]) <= 0;
   const atEnd = !shown.length || seq.indexOf(shown[shown.length - 1]) >= seq.length - 1;
   const isStop = active && active === stopKey;
   const amudDone = a => learned[amudKey(tractate, parseInt(a, 10), a.endsWith('b') ? 'ב' : 'א')];
   const toggleDone = a => onToggleAmud(tractate, parseInt(a, 10), a.endsWith('b') ? 'ב' : 'א');
+  const chapStartsAt = (a, k) => chapters && chapters.find(c => c.start === a && chapSeg(c) === k);
   const btn = { background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.22)', borderRadius:8, color:'#e8f0ff', fontFamily:"'Heebo',sans-serif", fontSize:'0.8rem', padding:'0.3rem 0.6rem', cursor:'pointer', whiteSpace:'nowrap' };
+  const chapHeading = c => (
+    <div style={{ textAlign:'center', margin:'0.8rem 0 0.6rem', fontFamily:"'Frank Ruhl Libre',serif" }}>
+      <div style={{ fontSize:'0.8rem', color:'#8a6000', fontWeight:600, fontFamily:"'Heebo',sans-serif" }}>פרק {hebNum(c.n)}</div>
+      <div style={{ fontSize:'1.35rem', fontWeight:900, color:'#1a2d6e' }}>{c.name}</div>
+    </div>
+  );
+
+  // חלון ניווט: פרקים, ובכל פרק — הדפים שלו
+  const navGroups = chapters ? chapters.map((c, i) => {
+    const from = parseInt(c.start, 10), next = chapters[i + 1];
+    const to = next ? parseInt(next.start, 10) - (next.start.endsWith('a') && chapSeg(next) === 1 ? 1 : 0) : firstDaf(tInfo) + tInfo.dafim - 1;
+    const dafim = []; for (let d = from; d <= to; d++) dafim.push(d);
+    return { c, dafim };
+  }) : [];
+  const amudBtn = (d, side) => {
+    const a = d + side, cur = a === activeAmud, done = amudDone(a);
+    return (
+      <button key={side} onClick={() => jumpTo(a, 1)} aria-label={amudLabel(a) + (done ? ' (נלמד)' : '')}
+        style={{ flex:1, border: cur ? '2px solid #2a40a0' : '1px solid #d8e0f0', background: done ? '#e3f4ec' : '#fff', color: done ? '#1a7a50' : '#3a4f7a', borderRadius:6, fontSize:'0.72rem', fontWeight: cur ? 800 : 600, padding:'0.22rem 0', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>
+        {side === 'a' ? 'ע״א' : 'ע״ב'}
+      </button>
+    );
+  };
 
   return (
     <div dir="rtl" role="dialog" aria-label={'עיון — ' + tractate} style={{ position:'fixed', inset:0, zIndex:500, background:'#fff', display:'flex', flexDirection:'column', fontFamily:"'Heebo',sans-serif" }}>
       {/* כותרת */}
-      <div style={{ background:'linear-gradient(135deg,#1a2d6e 0%,#2a40a0 100%)', color:'#e8f0ff', padding:'0.55rem 0.8rem', display:'flex', alignItems:'center', gap:'0.5rem', boxShadow:'0 2px 12px rgba(20,40,100,0.3)' }}>
+      <div style={{ background:'linear-gradient(135deg,#1a2d6e 0%,#2a40a0 100%)', color:'#e8f0ff', padding:'0.55rem 0.8rem', display:'flex', alignItems:'center', gap:'0.5rem', boxShadow:'0 2px 12px rgba(20,40,100,0.3)', position:'relative', zIndex:2 }}>
         <button onClick={close} aria-label="סגור" style={{ ...btn, fontSize:'1.05rem', padding:'0.15rem 0.55rem' }}>→</button>
-        <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'1.05rem', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{tractate} · {cfg.title}</div>
-          <div style={{ fontSize:'0.74rem', color:'#e8c040', fontWeight:600 }}>{activeAmud ? amudLabel(activeAmud) : ''}</div>
-        </div>
-        <button onClick={() => setFont(f => Math.max(1, +(f - 0.1).toFixed(2)))} aria-label="הקטן גופן" style={btn}>א-</button>
-        <button onClick={() => setFont(f => Math.min(2, +(f + 0.1).toFixed(2)))} aria-label="הגדל גופן" style={btn}>א+</button>
+        <button onClick={() => setNav(n => !n)} aria-expanded={nav} style={{ flex:1, minWidth:0, background:'none', border:'none', color:'inherit', textAlign:'right', cursor:'pointer', padding:0, fontFamily:'inherit' }}>
+          <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'1.05rem', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{tractate}{chap ? ' · ' + chap.name : ''}</div>
+          <div style={{ fontSize:'0.74rem', color:'#e8c040', fontWeight:600 }}>{activeAmud ? amudLabel(activeAmud) : ''} <span style={{ color:'#b8ceff' }}>{nav ? '▲' : '▼'}</span></div>
+        </button>
+        <button onClick={() => setNav(n => !n)} aria-label="ניווט לפרק או דף" style={{ ...btn, background: nav ? '#e8f0ff' : btn.background, color: nav ? '#1a2d6e' : btn.color, fontWeight:700 }}>☰ דפים</button>
         <button onClick={() => active && onStop(isStop ? null : active)} disabled={!active}
           title={isStop ? 'הסר סימנייה' : 'סמן: כאן עצרתי'}
           style={{ ...btn, background: isStop ? '#e8c040' : btn.background, color: isStop ? '#1a2340' : btn.color, fontWeight:700 }}>
-          📍 {isStop ? 'מסומן' : 'סמן כאן'}
+          📍 {isStop ? 'מסומן' : 'סמן'}
         </button>
       </div>
 
       {err && <div style={{ background:'#fef3c7', color:'#92400e', fontSize:'0.82rem', padding:'0.5rem 1rem', textAlign:'center' }}>
-        {err} {!range && <span onClick={init} style={{ textDecoration:'underline', cursor:'pointer', fontWeight:700 }}>נסה שוב</span>}
+        {err} {!shown.length && <span onClick={init} style={{ textDecoration:'underline', cursor:'pointer', fontWeight:700 }}>נסה שוב</span>}
+      </div>}
+
+      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', position:'relative' }}>
+      {/* ניווט */}
+      {nav && <div ref={navRef} style={{ position:'absolute', inset:0, zIndex:3, background:'#f2f5fc', overflowY:'auto', padding:'0.8rem 1rem 2rem' }}>
+        <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap', alignItems:'center', marginBottom:'0.9rem' }}>
+          {stopKey && <button onClick={() => jumpTo(stopKey.split(':')[0], +stopKey.split(':')[1])} style={{ background:'#fff4d6', border:'1px solid #e8c040', borderRadius:99, color:'#8a6000', fontWeight:700, fontSize:'0.82rem', padding:'0.35rem 0.9rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>📍 לסימנייה · {amudLabel(stopKey.split(':')[0]).replace('דף ', '')}</button>}
+          <span style={{ marginRight:'auto', display:'inline-flex', alignItems:'center', gap:'0.35rem', fontSize:'0.8rem', color:'#3a4f7a' }}>גופן
+            <button onClick={() => setFont(f => Math.max(1, +(f - 0.1).toFixed(2)))} aria-label="הקטן גופן" style={{ border:'1px solid #d8e0f0', background:'#fff', borderRadius:6, padding:'0.2rem 0.55rem', cursor:'pointer' }}>א-</button>
+            <button onClick={() => setFont(f => Math.min(2, +(f + 0.1).toFixed(2)))} aria-label="הגדל גופן" style={{ border:'1px solid #d8e0f0', background:'#fff', borderRadius:6, padding:'0.2rem 0.55rem', cursor:'pointer' }}>א+</button>
+          </span>
+        </div>
+        {!chapters && <div style={{ textAlign:'center', color:'#7a8aaa', padding:'2rem 0' }}>טוען...</div>}
+        {navGroups.map(({ c, dafim }) => (
+          <div key={c.n} data-cur={chap && chap.n === c.n ? '1' : undefined} style={{ marginBottom:'1.1rem' }}>
+            <button onClick={() => jumpTo(c.start, chapSeg(c))}
+              style={{ width:'100%', display:'flex', alignItems:'baseline', gap:'0.5rem', background: chap && chap.n === c.n ? '#e3edfc' : '#fff', border:'1px solid #d8e0f0', borderRadius:10, padding:'0.5rem 0.8rem', cursor:'pointer', marginBottom:'0.45rem', textAlign:'right', fontFamily:"'Heebo',sans-serif" }}>
+              <span style={{ fontSize:'0.75rem', color:'#8a6000', fontWeight:700 }}>פרק {hebNum(c.n)}</span>
+              <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.05rem', fontWeight:700, color:'#1a2340' }}>{c.name}</span>
+              <span style={{ marginRight:'auto', fontSize:'0.72rem', color:'#7a8aaa' }}>מ{amudLabel(c.start).replace('דף ', '')}</span>
+            </button>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(78px, 1fr))', gap:'0.35rem' }}>
+              {dafim.map(d => (
+                <div key={d} style={{ background:'#fff', border:'1px solid #e2e8f4', borderRadius:8, padding:'0.25rem 0.3rem 0.3rem', textAlign:'center' }}>
+                  <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'0.95rem', color:'#1a2340', lineHeight:1.4 }}>{hebNum(d)}</div>
+                  <div style={{ display:'flex', gap:'0.2rem' }}>{amudBtn(d, 'a')}{amudBtn(d, 'b')}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>}
 
       {/* גמרא */}
       <div ref={topRef} onScroll={onTopScroll} style={{ flex: stOpen ? '1 1 52%' : '1 1 100%', overflowY:'auto', padding:'0.8rem 1rem 2rem', WebkitOverflowScrolling:'touch' }}>
-        {!range && !err && <div style={{ textAlign:'center', color:'#7a8aaa', padding:'3rem 0' }}>טוען מספריא...</div>}
-        {range && !atStart && <div style={{ textAlign:'center', marginBottom:'0.6rem' }}>
+        {!shown.length && !err && <div style={{ textAlign:'center', color:'#7a8aaa', padding:'3rem 0' }}>טוען מספריא...</div>}
+        {!atStart && <div style={{ textAlign:'center', marginBottom:'0.6rem' }}>
           <button onClick={loadPrev} disabled={busy} style={{ background:'#eef2f9', border:'none', borderRadius:99, color:'#3d5499', fontSize:'0.78rem', fontWeight:600, padding:'0.3rem 0.9rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>▲ עמוד קודם</button>
         </div>}
         {shown.map(a => (
@@ -620,13 +695,16 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
             <div style={{ textAlign:'center', color:'#8a6000', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'0.95rem', margin:'0.4rem 0 0.5rem', letterSpacing:'0.02em' }}>— {amudLabel(a)} —</div>
             <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize: font + 'rem', lineHeight:2, textAlign:'justify', color:'#1a2340' }}>
               {segsOf(a).map(k => {
-                const key = a + ':' + k, on = key === active, stop = key === stopKey;
+                const key = a + ':' + k, on = key === active, stop = key === stopKey, ch = chapStartsAt(a, k);
                 return (
-                  <span key={key} ref={el => { segEls.current[key] = el; }} onClick={() => activate(key, false)}
-                    style={{ background: on ? '#e3edfc' : stop ? '#fff4d6' : 'transparent', borderRadius:4, cursor:'pointer', transition:'background 0.2s', boxDecorationBreak:'clone', WebkitBoxDecorationBreak:'clone' }}>
-                    {stop && <span aria-label="כאן עצרת" style={{ fontSize:'0.75em' }}>📍</span>}
-                    <span dangerouslySetInnerHTML={{ __html: texts[a].gem[k - 1] }} />{' '}
-                  </span>
+                  <React.Fragment key={key}>
+                    {ch && chapHeading(ch)}
+                    <span ref={el => { segEls.current[key] = el; }} onClick={() => activate(key, false)}
+                      style={{ background: on ? '#e3edfc' : stop ? '#fff4d6' : 'transparent', borderRadius:4, cursor:'pointer', transition:'background 0.2s', boxDecorationBreak:'clone', WebkitBoxDecorationBreak:'clone' }}>
+                      {stop && <span aria-label="כאן עצרת" style={{ fontSize:'0.75em' }}>📍</span>}
+                      <span dangerouslySetInnerHTML={{ __html: texts[a].gem[k - 1] }} />{' '}
+                    </span>
+                  </React.Fragment>
                 );
               })}
             </div>
@@ -637,8 +715,8 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
             </div>
           </div>
         ))}
-        {range && atEnd && shown.length > 0 && <div style={{ textAlign:'center', color:'#8a6000', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, padding:'1rem 0' }}>הדרן עלך {cfg.title}</div>}
-        {busy && range && <div style={{ textAlign:'center', color:'#7a8aaa', fontSize:'0.8rem' }}>טוען...</div>}
+        {atEnd && shown.length > 0 && <div style={{ textAlign:'center', color:'#8a6000', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, padding:'1rem 0' }}>הדרן עלך מסכת {tractate}</div>}
+        {busy && shown.length > 0 && <div style={{ textAlign:'center', color:'#7a8aaa', fontSize:'0.8rem' }}>טוען...</div>}
       </div>
 
       {/* ביאור שטיינזלץ */}
@@ -660,6 +738,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
           הטקסט מספריא (Sefaria) · תלמוד מהדורת William Davidson · ביאור הרב עדין שטיינזלץ · CC BY-NC
         </div>
       </div>}
+      </div>
     </div>
   );
 }
@@ -1191,8 +1270,8 @@ function App() {
                             {hasHard && <span style={{ color:'#d4af37', display:'inline-flex' }} title="יש דפים קשים"><Ic d={ICONS.star} size={11} /></span>}
                           </div>
                           <div style={{ display:'flex', alignItems:'center', gap:'0.35rem', flexWrap:'wrap', justifyContent:'flex-end' }}>
-                            {READER_CHAPTERS[t.name] && (() => { const bm = readerMarks[t.name]; const at = bm && (bm.stop || bm.last); return (
-                              <button onClick={e => { e.stopPropagation(); setReaderOpen(t.name); }} title={'עיון עם ביאור שטיינזלץ · ' + READER_CHAPTERS[t.name].title}
+                            {READER_TRACTATES[t.name] && (() => { const bm = readerMarks[t.name]; const at = bm && (bm.stop || bm.last); return (
+                              <button onClick={e => { e.stopPropagation(); setReaderOpen(t.name); }} title={'עיון במסכת ' + t.name + ' עם ביאור שטיינזלץ'}
                                 style={{ fontSize:'0.72rem', color:'#fff', background:'#2a40a0', border:'none', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                                 📖 {at ? 'המשך · ' + amudLabel(at.split(':')[0]).replace('דף ', '') : 'עיון'}
                               </button>); })()}

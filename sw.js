@@ -1,5 +1,6 @@
-const CACHE = 'shas-v23';
+const CACHE = 'shas-v24';
 const RUNTIME = 'shas-runtime-v1';
+const TEXTS = 'shas-texts-v1'; // טקסטים מספריא שנשמרים ממסך העיון
 const ASSETS = ['./', './index.html', './privacy.html', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './manifest.json'];
 // ספריות חיצוניות בגרסאות קבועות — שומרים במטמון כדי שהאפליקציה תיפתח גם בלי אינטרנט
 const CDN_HOSTS = ['cdnjs.cloudflare.com', 'unpkg.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
@@ -13,7 +14,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE && k !== RUNTIME).map(k => caches.delete(k)))
+      Promise.all(keys.filter(k => k !== CACHE && k !== RUNTIME && k !== TEXTS).map(k => caches.delete(k)))
     )
   );
   self.clients.claim();

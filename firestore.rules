@@ -2,21 +2,50 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
-      allow read, create: if request.auth != null && request.auth.uid == uid;
-      // עדכון מותר — אבל אסור לדרוס נתונים גדולים בריקים (הגנה מאובדן נתונים)
-      allow update: if request.auth != null && request.auth.uid == uid
-        && !wipes('shas-learned') && !wipes('shas-reviews') && !wipes('shas-journal')
-        && !wipes('shas-hard') && !wipes('shas-notes');
-      allow delete: if false;
+      function isOwner() { return request.auth != null && request.auth.uid == uid; }
 
-      // שדה שהיה גדול (מעל 100 תווים) לא יכול להפוך לריק (פחות מ-10 תווים)
+      // השדות שהאפליקציה כותבת. מותר להשאיר שדות ישנים (למשל shas-notes) — רק לא לכתוב אליהם
+      function knownFields() {
+        return ['shas-learned', 'shas-reviews', 'shas-hard', 'shas-journal', 'shas-streak', 'shas-target', 'shas-reader', 'shas-wipe'];
+      }
+      function validValues(d) {
+        return (!('shas-learned' in d) || (d['shas-learned'] is string && d['shas-learned'].size() < 400000))
+          && (!('shas-reviews' in d) || (d['shas-reviews'] is string && d['shas-reviews'].size() < 400000))
+          && (!('shas-hard' in d) || (d['shas-hard'] is string && d['shas-hard'].size() < 400000))
+          && (!('shas-journal' in d) || (d['shas-journal'] is string && d['shas-journal'].size() < 300000))
+          && (!('shas-reader' in d) || (d['shas-reader'] is string && d['shas-reader'].size() < 20000))
+          && (!('shas-streak' in d) || (d['shas-streak'] is string && d['shas-streak'].size() < 200))
+          && (!('shas-target' in d) || (d['shas-target'] is string && d['shas-target'].size() < 500));
+      }
+
+      allow read: if isOwner();
+      allow create: if isOwner()
+        && request.resource.data.keys().hasOnly(knownFields())
+        && validValues(request.resource.data);
+      // עדכון מותר — אבל אסור לדרוס נתונים גדולים בריקים (הגנה מאובדן נתונים בגלל באג),
+      // אלא אם זו מחיקה מכוונת של המשתמש: האפליקציה מצרפת shas-wipe = { field, at: serverTimestamp() } באותה כתיבה
+      allow update: if isOwner()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(knownFields())
+        && validValues(request.resource.data)
+        && !wipes('shas-learned') && !wipes('shas-reviews') && !wipes('shas-journal') && !wipes('shas-hard');
+      // מחיקת חשבון מתוך האפליקציה (אחרי אישור כפול של המשתמש)
+      allow delete: if isOwner();
+
+      // שדה שהיה גדול (מעל 100 תווים) לא יכול להפוך לריק (פחות מ-10 תווים) — בלי אישור מחיקה מכוונת
       function wipes(field) {
         return field in resource.data
           && resource.data[field] is string
           && resource.data[field].size() > 100
           && field in request.resource.data
           && request.resource.data[field] is string
-          && request.resource.data[field].size() < 10;
+          && request.resource.data[field].size() < 10
+          && !intendedWipe(field);
+      }
+      function intendedWipe(field) {
+        return 'shas-wipe' in request.resource.data
+          && request.resource.data['shas-wipe'] is map
+          && request.resource.data['shas-wipe'].get('field', '') == field
+          && request.resource.data['shas-wipe'].get('at', null) == request.time;
       }
     }
   }

@@ -3,9 +3,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/logic.test.mjs",
+    "test:e2e": "node tests/e2e.mjs",
+    "test:rules": "npx --yes firebase-tools@15.33.0 emulators:exec --only firestore --project demo-shas-tracker 'node --test tests/rules.test.mjs'"
   },
   "devDependencies": {
-    "esbuild": "0.28.2"
+    "@firebase/rules-unit-testing": "3.0.4",
+    "@hebcal/learning": "6.12.0",
+    "axe-core": "4.14.0",
+    "esbuild": "0.28.2",
+    "playwright": "1.64.0"
+  },
+  "dependencies": {
+    "@hebcal/core": "5.6.1",
+    "firebase": "10.12.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
   }
 }

@@ -1,23 +1,48 @@
-# בונה את האתר (קומפילציה מראש של הקוד) ומפרסם ל-GitHub Pages בכל דחיפה ל-main.
+# בדיקות בכל דחיפה ו-PR. ב-main: בנייה (אריזת הקוד והספריות מ-npm) ופרסום ל-GitHub Pages, ופריסת כללי האבטחה של Firestore.
 # דורש פעם אחת: Settings → Pages → Source = "GitHub Actions".
-name: Deploy to GitHub Pages
+# פריסת כללי Firestore (אופציונלי): Settings → Secrets → Actions → FIREBASE_SERVICE_ACCOUNT = JSON של חשבון שירות
+#   עם הרשאת "Firebase Rules Admin" בפרויקט shas-tracker. בלי הסוד — השלב מדולג (ומפרסמים את הכללים ידנית).
+name: Test & Deploy
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Unit tests (daf yomi, dates, sync merge)
+        run: npm test
+      - name: Browser tests (flows, accessibility, offline, service worker)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Firestore security rules tests (emulator)
+        run: npm run test:rules
+
   build:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,9 +60,32 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  deploy-rules:
+    needs: test
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      HAS_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.HAS_SA == 'true'
+      - name: Deploy firestore.rules
+        if: env.HAS_SA == 'true'
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$SA" > "$RUNNER_TEMP/sa.json"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json" npx --yes firebase-tools@15.33.0 deploy --only firestore:rules --project shas-tracker --non-interactive
+      - name: Skipped (no FIREBASE_SERVICE_ACCOUNT secret)
+        if: env.HAS_SA != 'true'
+        run: echo "::notice::firestore.rules not deployed automatically — publish manually (firebase deploy --only firestore:rules)"

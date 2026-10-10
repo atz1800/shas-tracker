@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -26,15 +26,17 @@
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/@hebcal/core@5.6.1/dist/bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@400;700;900&family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" crossorigin="anonymous">
+<!-- ספריות מ-CDN — רק לעבודה מקומית על קובץ המקור. בבנייה (scripts/build.mjs) הן נארזות מ-npm לקובץ אחד, בלי CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@hebcal/core@5.6.1/dist/bundle.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script type="module" id="fb-init">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, persistentMultipleTabManager, memoryLocalCache, doc, setDoc, getDoc, getDocFromServer, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, deleteUser, reauthenticateWithPopup } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, persistentMultipleTabManager, memoryLocalCache, doc, setDoc, deleteDoc, getDocFromServer, onSnapshot, serverTimestamp, terminate, clearIndexedDbPersistence, waitForPendingWrites } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyBiEfJgr_wyq33GpG5pHo37DXqKnrDYivo",
@@ -61,17 +63,18 @@
   }
   const provider = new GoogleAuthProvider();
 
-  window._fb = { auth, db, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, doc, setDoc, getDoc, getDocFromServer, onSnapshot };
+  window._fb = { auth, db, provider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged, deleteUser, reauthenticateWithPopup,
+    doc, setDoc, deleteDoc, getDocFromServer, onSnapshot, serverTimestamp, terminate, clearIndexedDbPersistence, waitForPendingWrites };
 </script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Heebo', sans-serif; background: #f2f5fc; }
 .amud-cell { width:44px; height:40px; border-radius:7px; border:1.5px solid #d8e0f0; background:#fff; display:flex; align-items:center; justify-content:center; flex-direction:column; cursor:pointer; transition:all 0.12s; user-select:none; position:relative; gap:1px; box-shadow:0 1px 3px rgba(30,45,90,0.06); }
-.amud-cell:hover { border-color:#4a67c8; background:#eef1ff; transform:scale(1.08); z-index:2; }
+@media (hover: hover) { .amud-cell:hover { border-color:#4a67c8; background:#eef1ff; transform:scale(1.08); z-index:2; } }
 .amud-cell.learned { background:#dde6ff; border-color:#4a67c8; box-shadow:0 1px 5px rgba(74,103,200,0.18); }
 .amud-cell.flash { transform:scale(1.22); background:#b8caff; }
 .daf-num { font-size:0.75rem; font-weight:700; color:#1e2d5a; line-height:1; font-family:'Frank Ruhl Libre',serif; }
-.amud-letter { font-size:0.55rem; color:#8899bb; line-height:1; }
+.amud-letter { font-size:0.6rem; color:#5f6e8e; line-height:1; }
 .amud-cell.learned .daf-num { color:#2e4080; }
 .amud-cell.learned .amud-letter { color:#4a67c8; }
 .amud-cell.review-mode { border-color:#a78bfa !important; background:#f5f3ff !important; }
@@ -79,9 +82,15 @@ body { font-family: 'Heebo', sans-serif; background: #f2f5fc; }
 .amud-cell.hard-mode { border-color:#fca5a5 !important; background:#fff5f5 !important; }
 .amud-cell.hard-mode:hover { border-color:#ef4444 !important; background:#fee2e2 !important; }
 .amud-cell.daf-yomi { box-shadow: 0 0 0 2.5px #f59e0b, 0 2px 8px rgba(245,158,11,0.25) !important; z-index:1; }
-.amud-cell:focus-visible, .thdr:focus-visible { outline: 3px solid #2a40a0; outline-offset: 2px; z-index:3; }
+.amud-cell:focus-visible, .thdr-btn:focus-visible, button:focus-visible, a:focus-visible, select:focus-visible, [role="button"]:focus-visible { outline: 3px solid #2a40a0; outline-offset: 2px; z-index:3; }
+.on-dark :focus-visible { outline-color: #e8d870 !important; }
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.thdr-btn { background:none; border:none; padding:0; margin:0; font:inherit; color:inherit; cursor:pointer; text-align:right; display:flex; align-items:center; gap:0.3rem; }
+.safe-top { padding-top: env(safe-area-inset-top); }
+.toast { position:fixed; bottom:calc(1rem + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:1000; max-width:min(92vw, 520px); border-radius:10px; padding:0.65rem 1rem; font-family:'Heebo',sans-serif; font-size:0.85rem; font-weight:600; box-shadow:0 6px 24px rgba(0,0,0,0.25); display:flex; gap:0.7rem; align-items:center; }
 .thdr:hover { background:#f5f7ff; }
-input:focus, textarea:focus { outline:none; }
+input:focus:not(:focus-visible), textarea:focus:not(:focus-visible) { outline:none; }
+input:focus-visible, textarea:focus-visible { outline: 2px solid #4a67c8; outline-offset: 1px; }
 ::-webkit-scrollbar { width:5px; }
 ::-webkit-scrollbar-thumb { background:#b0bcdc; border-radius:3px; }
 .journal-entry { background:#fff; border:1.5px solid #d8e0f0; border-radius:10px; padding:1rem; margin-bottom:0.7rem; }
@@ -89,7 +98,7 @@ input:focus, textarea:focus { outline:none; }
 .entry-actions { opacity:0; transition:opacity 0.15s; display:flex; gap:0.4rem; }
 .entry-actions:focus-within { opacity:1; }
 @media (hover: none) { .entry-actions { opacity:0.75; } }
-.entry-btn { background:none; border:none; cursor:pointer; font-size:0.8rem; padding:0.2rem 0.4rem; border-radius:4px; color:#8899bb; transition:all 0.12s; }
+.entry-btn { background:none; border:none; cursor:pointer; font-size:0.8rem; padding:0.35rem 0.5rem; border-radius:4px; color:#5f6e8e; transition:all 0.12s; }
 .entry-btn:hover { background:#eef1ff; color:#3a4f7a; }
 .entry-btn.del:hover { background:#fff0f0; color:#8b2020; }
 .mbtn { padding:0.3rem 0.75rem; border-radius:99px; cursor:pointer; font-family:'Heebo',sans-serif; font-size:0.72rem; font-weight:500; transition:all 0.15s; border: none; display:inline-flex; align-items:center; gap:0.3rem; }
@@ -97,7 +106,7 @@ input:focus, textarea:focus { outline:none; }
 @media (max-width: 500px) {
   .tab-label { display: none; }
   .tab-btn { padding: 0.5rem 0.6rem; }
-  .top-actions span, .top-actions button { font-size: 0.58rem !important; padding: 0.15rem 0.35rem !important; }
+  .top-actions span, .top-actions button { font-size: 0.68rem !important; padding: 0.3rem 0.45rem !important; }
 }
 </style>
 </head>
@@ -106,17 +115,17 @@ input:focus, textarea:focus { outline:none; }
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useMemo } = React;
-const APP_VERSION = 'v27'; // חובה לעדכן יחד עם CACHE ב-sw.js
+const APP_VERSION = 'v28'; // בבנייה מתווסף מזהה ייחודי (וגם שם המטמון ב-sw.js מתעדכן אוטומטית)
 
 const SHAS = [
-  { seder: 'סדר זרעים', tractates: [{ name: 'ברכות', dafim: 63 }]},
+  { seder: 'סדר זרעים', tractates: [{ name: 'ברכות', dafim: 63, endA: true }]},
   { seder: 'סדר מועד', tractates: [
-    { name: 'שבת', dafim: 156 }, { name: 'עירובין', dafim: 104 },
+    { name: 'שבת', dafim: 156 }, { name: 'עירובין', dafim: 104, endA: true },
     { name: 'פסחים', dafim: 120 }, { name: 'שקלים', dafim: 21 },
-    { name: 'יומא', dafim: 87 }, { name: 'סוכה', dafim: 55 },
-    { name: 'ביצה', dafim: 39 }, { name: 'ראש השנה', dafim: 34 },
-    { name: 'תענית', dafim: 30 }, { name: 'מגילה', dafim: 31 },
-    { name: 'מועד קטן', dafim: 28 }, { name: 'חגיגה', dafim: 26 },
+    { name: 'יומא', dafim: 87, endA: true }, { name: 'סוכה', dafim: 55 },
+    { name: 'ביצה', dafim: 39 }, { name: 'ראש השנה', dafim: 34, endA: true },
+    { name: 'תענית', dafim: 30, endA: true }, { name: 'מגילה', dafim: 31, endA: true },
+    { name: 'מועד קטן', dafim: 28, endA: true }, { name: 'חגיגה', dafim: 26, endA: true },
   ]},
   { seder: 'סדר נשים', tractates: [
     { name: 'יבמות', dafim: 121 }, { name: 'כתובות', dafim: 111 },
@@ -125,29 +134,35 @@ const SHAS = [
     { name: 'קידושין', dafim: 81 },
   ]},
   { seder: 'סדר נזיקין', tractates: [
-    { name: 'בבא קמא', dafim: 118 }, { name: 'בבא מציעא', dafim: 118 },
+    { name: 'בבא קמא', dafim: 118 }, { name: 'בבא מציעא', dafim: 118, endA: true },
     { name: 'בבא בתרא', dafim: 175 }, { name: 'סנהדרין', dafim: 112 },
     { name: 'מכות', dafim: 23 }, { name: 'שבועות', dafim: 48 },
-    { name: 'עבודה זרה', dafim: 75 }, { name: 'הוריות', dafim: 13 },
+    { name: 'עבודה זרה', dafim: 75 }, { name: 'הוריות', dafim: 13, endA: true },
   ]},
   { seder: 'סדר קדשים', tractates: [
-    { name: 'זבחים', dafim: 119 }, { name: 'מנחות', dafim: 109 },
-    { name: 'חולין', dafim: 141 }, { name: 'בכורות', dafim: 60 },
-    { name: 'ערכין', dafim: 33 }, { name: 'תמורה', dafim: 33 },
-    { name: 'כריתות', dafim: 27 }, { name: 'מעילה', dafim: 21 },
+    { name: 'זבחים', dafim: 119 }, { name: 'מנחות', dafim: 109, endA: true },
+    { name: 'חולין', dafim: 141, endA: true }, { name: 'בכורות', dafim: 60, endA: true },
+    { name: 'ערכין', dafim: 33, endA: true }, { name: 'תמורה', dafim: 33, endA: true },
+    { name: 'כריתות', dafim: 27 }, { name: 'מעילה', dafim: 21, endA: true },
     { name: 'תמיד', dafim: 9, start: 25 }, // בדפוס וילנא: כ״ה–ל״ג
   ]},
-  { seder: 'סדר טהרות', tractates: [{ name: 'נידה', dafim: 72 }]},
+  { seder: 'סדר טהרות', tractates: [{ name: 'נידה', dafim: 72, endA: true }]},
 ];
 
 const HEB = ['','א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב','יג','יד','טו','טז','יז','יח','יט','כ','כא','כב','כג','כד','כה','כו','כז','כח','כט','ל','לא','לב','לג','לד','לה','לו','לז','לח','לט','מ','מא','מב','מג','מד','מה','מו','מז','מח','מט','נ','נא','נב','נג','נד','נה','נו','נז','נח','נט','ס','סא','סב','סג','סד','סה','סו','סז','סח','סט','ע','עא','עב','עג','עד','עה','עו','עז','עח','עט','פ','פא','פב','פג','פד','פה','פו','פז','פח','פט','צ','צא','צב','צג','צד','צה','צו','צז','צח','צט','ק','קא','קב','קג','קד','קה','קו','קז','קח','קט','קי','קיא','קיב','קיג','קיד','קטו','קטז','קיז','קיח','קיט','קכ','קכא','קכב','קכג','קכד','קכה','קכו','קכז','קכח','קכט','קל','קלא','קלב','קלג','קלד','קלה','קלו','קלז','קלח','קלט','קמ','קמא','קמב','קמג','קמד','קמה','קמו','קמז','קמח','קמט','קנ','קנא','קנב','קנג','קנד','קנה','קנו','קנז','קנח','קנט','קס','קסא','קסב','קסג','קסד','קסה','קסו','קסז','קסח','קסט','קע','קעא','קעב','קעג','קעד','קעה','קעו'];
 
 // דף ראשון במסכת (2 לכולן, חוץ מתמיד שמתחילה בכ״ה) ורשימת הדפים
+// endA: המסכת מסתיימת בעמוד א׳ של הדף האחרון (אין ע״ב) — העמוד שלא קיים לא מוצג ולא נספר
 const firstDaf = t => t.start || 2;
+const lastDaf = t => firstDaf(t) + t.dafim - 1;
 const dafList = t => Array.from({ length: t.dafim }, (_, i) => i + firstDaf(t));
+const hasAmud = (t, d, a) => !(t.endA && a === 'ב' && d === lastDaf(t));
+// כל העמודים הקיימים במסכת, לפי הסדר: [[2,'א'],[2,'ב'],...]
+const amudList = t => dafList(t).flatMap(d => ['א','ב'].filter(a => hasAmud(t, d, a)).map(a => [d, a]));
+const amudCount = t => t.dafim * 2 - (t.endA ? 1 : 0);
 const TRACTATE_BY_NAME = Object.fromEntries(SHAS.flatMap(s => s.tractates).map(t => [t.name, t]));
 
-const TOTAL_AMUDIM = SHAS.reduce((s, sed) => s + sed.tractates.reduce((ss, t) => ss + t.dafim * 2, 0), 0);
+const TOTAL_AMUDIM = SHAS.reduce((s, sed) => s + sed.tractates.reduce((ss, t) => ss + amudCount(t), 0), 0);
 
 const TRACTATE_LINKS = {
   'ברכות':    { hb: 1,  sefaria: 'Berakhot',       ws: 'בבלי_ברכות',      sinaiMapId: 1,  chavruta: 188 },
@@ -219,17 +234,13 @@ function today() { return new Date().toLocaleDateString('he-IL', { day:'numeric'
 
 const DAF_YOMI_ORDER = ['ברכות','שבת','עירובין','פסחים','שקלים','יומא','סוכה','ביצה','ראש השנה','תענית','מגילה','מועד קטן','חגיגה','יבמות','כתובות','נדרים','נזיר','סוטה','גיטין','קידושין','בבא קמא','בבא מציעא','בבא בתרא','סנהדרין','מכות','שבועות','עבודה זרה','הוריות','זבחים','מנחות','חולין','בכורות','ערכין','תמורה','כריתות','מעילה','תמיד','נידה'];
 
-function todayDateStr() {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
+function dateStr(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function todayDateStr() { return dateStr(new Date()); }
+function yesterdayDateStr() { const d = new Date(); d.setDate(d.getDate() - 1); return dateStr(d); }
 
 function calcStreak(sd) {
   if (!sd || !sd.date) return 0;
-  const todayStr = todayDateStr();
-  const yd = new Date(); yd.setDate(yd.getDate() - 1);
-  const yStr = yd.getFullYear() + '-' + String(yd.getMonth()+1).padStart(2,'0') + '-' + String(yd.getDate()).padStart(2,'0');
-  return (sd.date === todayStr || sd.date === yStr) ? (sd.count || 1) : 0;
+  return (sd.date === todayDateStr() || sd.date === yesterdayDateStr()) ? (sd.count || 1) : 0;
 }
 
 // דף יומי — כמו בלוח הדף היומי: אחרי מעילה (ב׳–כ״ב) באים קינים כ״ג–כ״ה, תמיד כ״ו–ל״ג, מידות ל״ד–ל״ז. מחזור של 2711 יום
@@ -266,15 +277,26 @@ function getTodayDafYomi() {
   return _dyCache;
 }
 
-async function fbSave(uid, key, val) {
+// הודעה קצרה למשתמש (במקום alert) — מוצגת ע״י App
+function toast(text, kind = 'error') { window.dispatchEvent(new CustomEvent('shas-toast', { detail: { text, kind } })); }
+
+// allowWipe: מחיקה מכוונת של המשתמש (למשל מחיקת הרשומה האחרונה ביומן) — מצורף אישור שכללי האבטחה מזהים,
+// כדי שההגנה מפני דריסה בערך ריק לא תחסום מחיקה אמיתית
+async function fbSave(uid, key, val, allowWipe) {
   // מגן גלובלי: אסור לכתוב לענן לפני שטעינת הנתונים הצליחה
   if (!window._shasDataLoaded) { console.warn('fbSave blocked — data not loaded yet:', key); return false; }
   try {
-    const { db, doc, setDoc } = window._fb;
+    const { db, doc, setDoc, serverTimestamp } = window._fb;
     const stored = typeof val === 'string' ? val : JSON.stringify(val);
-    await setDoc(doc(db, 'users', uid), { [key]: stored }, { merge: true });
+    const data = { [key]: stored };
+    if (allowWipe && stored.length < 10) data['shas-wipe'] = { field: key, at: serverTimestamp() };
+    await setDoc(doc(db, 'users', uid), data, { merge: true });
     return true;
-  } catch(e) { console.error('save error', e); return false; }
+  } catch(e) {
+    console.error('save error', key, e);
+    toast(e.code === 'permission-denied' ? 'השמירה בענן נדחתה (הרשאות). השינוי נשמר רק במכשיר הזה — נסה ☁ גיבוי.' : 'השמירה בענן נכשלה. השינוי נשמר רק במכשיר הזה — נסה ☁ גיבוי.');
+    return false;
+  }
 }
 async function fbLoad(uid) {
   try {
@@ -285,24 +307,36 @@ async function fbLoad(uid) {
     return {}; // המסמך לא קיים — משתמש חדש
   } catch(e) {
     console.error('load error', e);
-    if (e.code === 'permission-denied') {
-      alert('⚠️ אין הרשאה לקרוא את הנתונים מ-Firebase.\nיש לעדכן את כללי האבטחה ב-Firebase Console (Firestore → Rules).');
-    }
+    return { error: e.code === 'permission-denied' ? 'denied' : 'network' };
   }
-  return null; // טעינה נכשלה — אסור לדרוס את הענן
 }
 
 // מיזוג union — מוסיף מפתחות מהשרת שאין מקומית, ולוקח את הספירה הגבוהה (חזרות).
 // לעולם לא מוחק סימון — כך שסימון שנעשה במכשיר אחר לא נעלם. מחזיר null אם אין שינוי.
-function mergeInto(local, server) {
+// skip: מפתחות שהמשתמש מחק כאן ועדיין לא נשמרו — לא מחזירים אותם מהשרת
+function mergeInto(local, server, skip) {
   if (!server || typeof server !== 'object') return null;
   let changed = false;
   const out = { ...local };
   for (const k in server) {
+    if (skip && skip.has(k)) continue;
     if (!(k in out)) { out[k] = server[k]; changed = true; }
     else if (typeof server[k] === 'number' && typeof out[k] === 'number' && server[k] > out[k]) { out[k] = server[k]; changed = true; }
   }
   return changed ? out : null;
+}
+// יומן: מיזוג לפי id — רשומות מהשרת שאין מקומית מתווספות; רשומה קיימת — הגרסה המקומית נשארת
+function mergeJournal(local, server, skip) {
+  if (!Array.isArray(server)) return null;
+  const ids = new Set(local.map(e => e.id));
+  const add = server.filter(e => e && !ids.has(e.id) && !(skip && skip.has(e.id)));
+  return add.length ? [...local, ...add].sort((a, b) => b.id - a.id) : null;
+}
+// רצף: התאריך המאוחר מנצח; באותו יום — הספירה הגבוהה
+function mergeStreak(local, server) {
+  if (!server || !server.date) return null;
+  if (!local || !local.date || server.date > local.date || (server.date === local.date && (server.count || 0) > (local.count || 0))) return server;
+  return null;
 }
 
 // תאריך עברי בגימטריה לתצוגה — כ״ט אדר א׳ תשפ״ו
@@ -372,21 +406,41 @@ const READER_CHAPTERS = {
   ],
 };
 // מסכתות שהעמוד האחרון שלהן הוא ע״א (בשאר — ע״ב). עמוד שבכל זאת לא קיים בספריא — מדולג.
-const READER_ENDS_A = ['ברכות','עירובין','יומא','ראש השנה','תענית','מגילה','מועד קטן','חגיגה','בבא מציעא','הוריות','מנחות','חולין','בכורות','ערכין','תמורה','מעילה','נידה'];
+const READER_ENDS_A = SHAS.flatMap(s => s.tractates).filter(t => t.endA).map(t => t.name);
 const READER_STARTS_B = ['תמיד']; // תמיד מתחילה בכ״ה ע״ב
 const READER_TRACTATES = Object.fromEntries(Object.entries(TRACTATE_LINKS)
   .map(([name, l]) => [name, { book: l.sefaria, chapters: READER_CHAPTERS[name] || null, perek: !!l.noDaf }]));
 const READER_CACHE = 'shas-texts-v1'; // נשמר גם ב-sw.js — טקסט שנפתח פעם אחת זמין אופליין
 const SEFARIA = 'https://www.sefaria.org/api/';
 
+// מטמון הטקסטים: טקסט ישן מ-30 יום מתרענן ברקע (תיקונים בספריא), ומספר הרשומות מוגבל (הישנות נמחקות)
+const TEXT_MAX_AGE = 30 * 864e5, TEXT_MAX_ENTRIES = 1500;
 async function sefariaJson(path) {
   const url = SEFARIA + path;
-  let cache = null;
-  try { cache = await caches.open(READER_CACHE); const hit = await cache.match(url); if (hit) return await hit.json(); } catch(e) {}
+  let cache = null, hit = null;
+  try { cache = await caches.open(READER_CACHE); hit = await cache.match(url); } catch(e) {}
+  if (hit) {
+    const at = +hit.headers.get('x-cached-at') || 0;
+    if (Date.now() - at > TEXT_MAX_AGE && navigator.onLine) fetchText(url, cache).catch(() => {});
+    try { return await hit.json(); } catch(e) {}
+  }
+  return fetchText(url, cache);
+}
+async function fetchText(url, cache) {
   const res = await fetch(url);
   if (!res.ok) { const e = new Error('sefaria ' + res.status); e.status = res.status; throw e; }
-  try { if (cache) await cache.put(url, res.clone()); } catch(e) {}
-  return res.json();
+  const body = await res.text();
+  if (cache) try {
+    await cache.put(url, new Response(body, { headers: { 'content-type': 'application/json', 'x-cached-at': String(Date.now()) } }));
+    trimTextCache(cache);
+  } catch(e) {}
+  return JSON.parse(body);
+}
+let _trimAt = 0;
+function trimTextCache(cache) {
+  if (Date.now() - _trimAt < 60000) return;
+  _trimAt = Date.now();
+  cache.keys().then(keys => { for (let i = 0; i < keys.length - TEXT_MAX_ENTRIES; i++) cache.delete(keys[i]); }).catch(() => {});
 }
 
 // HTML מספריא — משאירים רק הדגשות, בלי הערות שוליים ובלי מאפיינים
@@ -478,7 +532,7 @@ async function loadAmud(book, amud) {
   return { gem, st };
 }
 
-function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onClose }) {
+function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmud, onClose }) {
   const cfg = READER_TRACTATES[tractate];
   const tInfo = TRACTATE_BY_NAME[tractate];
   const label = u => unitLabel(tractate, u);
@@ -500,18 +554,31 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
   const jumpRef = useRef(null);                    // קטע לגלול אליו אחרי החלפת העמודים המוצגים
   const busyRef = useRef(false);
   const stopKey = bookmark && bookmark.stop;
-  const startKey = (bookmark && (bookmark.stop || bookmark.last)) || null;
+  const startKey = start || (bookmark && (bookmark.stop || bookmark.last)) || null; // start: פתיחה במקום מסוים (דף יומי)
 
-  // חזרה (כפתור אחורה באנדרואיד) סוגרת את המסך; גלילת הדף שמאחור נעולה
+  // חזרה (כפתור אחורה באנדרואיד / Esc) סוגרת קודם את חלון הניווט ואז את המסך; גלילת הדף שמאחור נעולה
+  const navOpenRef = useRef(false);
+  const closeBtnRef = useRef(null);
   useEffect(() => {
     history.pushState({ reader: 1 }, '');
-    const onPop = () => onClose();
+    const onPop = () => { if (navOpenRef.current) { navOpenRef.current = false; setNav(false); } else onClose(); };
+    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); history.back(); } };
     window.addEventListener('popstate', onPop);
+    window.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('popstate', onPop); document.body.style.overflow = prev; };
+    const prevFocus = document.activeElement;
+    if (closeBtnRef.current) closeBtnRef.current.focus();
+    return () => {
+      window.removeEventListener('popstate', onPop); window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+      if (prevFocus && prevFocus.focus) try { prevFocus.focus(); } catch(e) {}
+    };
   }, []);
-  const close = () => history.back();
+  function openNav() { if (navOpenRef.current) return; navOpenRef.current = true; history.pushState({ readerNav: 1 }, ''); setNav(true); }
+  function closeNav() { if (navOpenRef.current) history.back(); } // popstate סוגר את החלון
+  const toggleNav = () => navOpenRef.current ? closeNav() : openNav();
+  const close = () => { const n = navOpenRef.current ? 2 : 1; navOpenRef.current = false; history.go(-n); };
 
   useEffect(() => { try { localStorage.setItem('reader-font', String(font)); } catch(e) {} }, [font]);
 
@@ -541,7 +608,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
 
   // מציג את amud והעמוד שאחריו, וגולל לקטע seg (ברירת מחדל: ראש העמוד)
   async function jumpTo(a, seg) {
-    busyRef.current = true; setBusy(true); setErr(null); setNav(false);
+    busyRef.current = true; setBusy(true); setErr(null); closeNav();
     try {
       const i = seq.indexOf(a);
       const pair = seq.slice(i, i + 2);
@@ -693,24 +760,24 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
   };
 
   return (
-    <div dir="rtl" role="dialog" aria-label={'עיון — ' + tractate} style={{ position:'fixed', inset:0, zIndex:500, background:'#fff', display:'flex', flexDirection:'column', fontFamily:"'Heebo',sans-serif" }}>
+    <div dir="rtl" role="dialog" aria-modal="true" aria-label={'עיון — ' + tractate} className="safe-top" style={{ position:'fixed', inset:0, zIndex:500, background:'#fff', display:'flex', flexDirection:'column', fontFamily:"'Heebo',sans-serif" }}>
       {/* כותרת */}
-      <div style={{ background:'linear-gradient(135deg,#1a2d6e 0%,#2a40a0 100%)', color:'#e8f0ff', padding:'0.55rem 0.8rem', display:'flex', alignItems:'center', gap:'0.5rem', boxShadow:'0 2px 12px rgba(20,40,100,0.3)', position:'relative', zIndex:2 }}>
-        <button onClick={close} aria-label="סגור" style={{ ...btn, fontSize:'1.05rem', padding:'0.15rem 0.55rem' }}>→</button>
-        <button onClick={() => setNav(n => !n)} aria-expanded={nav} style={{ flex:1, minWidth:0, background:'none', border:'none', color:'inherit', textAlign:'right', cursor:'pointer', padding:0, fontFamily:'inherit' }}>
+      <div className="on-dark" style={{ background:'linear-gradient(135deg,#1a2d6e 0%,#2a40a0 100%)', color:'#e8f0ff', padding:'0.55rem 0.8rem', display:'flex', alignItems:'center', gap:'0.5rem', boxShadow:'0 2px 12px rgba(20,40,100,0.3)', position:'relative', zIndex:2 }}>
+        <button ref={closeBtnRef} onClick={close} aria-label="סגור את מסך העיון" style={{ ...btn, fontSize:'1.05rem', padding:'0.15rem 0.55rem' }}>→</button>
+        <button onClick={toggleNav} aria-expanded={nav} aria-label={'ניווט — ' + tractate + (activeAmud ? ', ' + label(activeAmud) : '')} style={{ flex:1, minWidth:0, background:'none', border:'none', color:'inherit', textAlign:'right', cursor:'pointer', padding:0, fontFamily:'inherit' }}>
           <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'1.05rem', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{tractate}{chap ? ' · ' + (chap.name || 'פרק ' + hebNum(chap.n)) : ''}</div>
           <div style={{ fontSize:'0.74rem', color:'#e8c040', fontWeight:600 }}>{activeAmud ? label(activeAmud) : ''} <span style={{ color:'#b8ceff' }}>{nav ? '▲' : '▼'}</span></div>
         </button>
-        <button onClick={() => setNav(n => !n)} aria-label="ניווט לפרק או דף" style={{ ...btn, background: nav ? '#e8f0ff' : btn.background, color: nav ? '#1a2d6e' : btn.color, fontWeight:700 }}>☰ דפים</button>
+        <button onClick={toggleNav} aria-expanded={nav} aria-label="ניווט לפרק או דף" style={{ ...btn, background: nav ? '#e8f0ff' : btn.background, color: nav ? '#1a2d6e' : btn.color, fontWeight:700 }}>☰ דפים</button>
         <button onClick={() => active && onStop(isStop ? null : active)} disabled={!active}
-          title={isStop ? 'הסר סימנייה' : 'סמן: כאן עצרתי'}
+          title={isStop ? 'הסר סימנייה' : 'סמן: כאן עצרתי'} aria-label={isStop ? 'הסר סימנייה' : 'סמן סימנייה: כאן עצרתי'}
           style={{ ...btn, background: isStop ? '#e8c040' : btn.background, color: isStop ? '#1a2340' : btn.color, fontWeight:700 }}>
           📍 {isStop ? 'מסומן' : 'סמן'}
         </button>
       </div>
 
       {err && <div style={{ background:'#fef3c7', color:'#92400e', fontSize:'0.82rem', padding:'0.5rem 1rem', textAlign:'center' }}>
-        {err} {!shown.length && <span onClick={init} style={{ textDecoration:'underline', cursor:'pointer', fontWeight:700 }}>נסה שוב</span>}
+        {err} {!shown.length && <button onClick={init} style={{ background:'none', border:'none', color:'inherit', font:'inherit', textDecoration:'underline', cursor:'pointer', fontWeight:700, padding:0 }}>נסה שוב</button>}
       </div>}
 
       <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', position:'relative' }}>
@@ -723,14 +790,14 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
             <button onClick={() => setFont(f => Math.min(2, +(f + 0.1).toFixed(2)))} aria-label="הגדל גופן" style={{ border:'1px solid #d8e0f0', background:'#fff', borderRadius:6, padding:'0.2rem 0.55rem', cursor:'pointer' }}>א+</button>
           </span>
         </div>
-        {!chapters && <div style={{ textAlign:'center', color:'#7a8aaa', padding:'2rem 0' }}>טוען...</div>}
+        {!chapters && <div style={{ textAlign:'center', color:'#5f6e8e', padding:'2rem 0' }}>טוען...</div>}
         {navGroups.map(({ c, dafim }) => (
           <div key={c ? c.n : 0} data-cur={c && chap && chap.n === c.n ? '1' : undefined} style={{ marginBottom:'1.1rem' }}>
             {c && <button onClick={() => jumpTo(c.start, chapSeg(c))}
               style={{ width:'100%', display:'flex', alignItems:'baseline', gap:'0.5rem', background: chap && chap.n === c.n ? '#e3edfc' : '#fff', border:'1px solid #d8e0f0', borderRadius:10, padding:'0.5rem 0.8rem', cursor:'pointer', marginBottom:'0.45rem', textAlign:'right', fontFamily:"'Heebo',sans-serif" }}>
               <span style={{ fontSize:'0.75rem', color:'#8a6000', fontWeight:700 }}>פרק {hebNum(c.n)}</span>
               <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.05rem', fontWeight:700, color:'#1a2340' }}>{c.name}</span>
-              {!cfg.perek && <span style={{ marginRight:'auto', fontSize:'0.72rem', color:'#7a8aaa' }}>מ{amudLabel(c.start).replace('דף ', '')}</span>}
+              {!cfg.perek && <span style={{ marginRight:'auto', fontSize:'0.72rem', color:'#5f6e8e' }}>מ{amudLabel(c.start).replace('דף ', '')}</span>}
             </button>}
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(78px, 1fr))', gap:'0.35rem' }}>
               {dafim.map(d => (
@@ -745,8 +812,8 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
       </div>}
 
       {/* גמרא */}
-      <div ref={topRef} onScroll={onTopScroll} style={{ flex: stOpen ? '1 1 52%' : '1 1 100%', overflowY:'auto', padding:'0.8rem 1rem 40vh', WebkitOverflowScrolling:'touch' }}>
-        {!shown.length && !err && <div style={{ textAlign:'center', color:'#7a8aaa', padding:'3rem 0' }}>טוען מספריא...</div>}
+      <div ref={topRef} onScroll={onTopScroll} tabIndex={0} aria-label="טקסט הגמרא" style={{ flex: stOpen ? '1 1 52%' : '1 1 100%', overflowY:'auto', padding:'0.8rem 1rem 40vh', WebkitOverflowScrolling:'touch' }}>
+        {!shown.length && !err && <div style={{ textAlign:'center', color:'#5f6e8e', padding:'3rem 0' }}>טוען מספריא...</div>}
         {!atStart && <div style={{ textAlign:'center', marginBottom:'0.6rem' }}>
           <button onClick={loadPrev} disabled={busy} style={{ background:'#eef2f9', border:'none', borderRadius:99, color:'#3d5499', fontSize:'0.78rem', fontWeight:600, padding:'0.3rem 0.9rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>▲ {cfg.perek ? 'פרק קודם' : 'עמוד קודם'}</button>
         </div>}
@@ -777,7 +844,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
           </div>
         ))}
         {atEnd && shown.length > 0 && <div style={{ textAlign:'center', color:'#8a6000', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, padding:'1rem 0' }}>הדרן עלך מסכת {tractate}</div>}
-        {busy && shown.length > 0 && <div style={{ textAlign:'center', color:'#7a8aaa', fontSize:'0.8rem' }}>טוען...</div>}
+        {busy && shown.length > 0 && <div style={{ textAlign:'center', color:'#5f6e8e', fontSize:'0.8rem' }}>טוען...</div>}
       </div>
 
       {/* ביאור שטיינזלץ */}
@@ -785,7 +852,7 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
         style={{ background:'#f1f1ef', border:'none', borderTop:'1px solid #dcdcd6', borderBottom: stOpen ? '1px solid #e6e6e0' : 'none', padding:'0.55rem 1rem', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.02rem', fontWeight:700, color:'#3a3a3a' }}>
         <span>ביאור שטיינזלץ</span><span style={{ fontSize:'0.8rem', color:'#888' }}>{stOpen ? '▼' : '▲'}</span>
       </button>
-      {stOpen && <div ref={botRef} style={{ flex:'1 1 48%', overflowY:'auto', background:'#fafaf8', padding:'0.6rem 1rem 3rem', position:'relative', WebkitOverflowScrolling:'touch' }}>
+      {stOpen && <div ref={botRef} tabIndex={0} aria-label="ביאור שטיינזלץ" style={{ flex:'1 1 48%', overflowY:'auto', background:'#fafaf8', padding:'0.6rem 1rem 3rem', position:'relative', WebkitOverflowScrolling:'touch' }}>
         {shown.map(a => segsOf(a).map(k => {
           const key = a + ':' + k, html = texts[a].st[k - 1], on = key === active;
           if (!html) return null;
@@ -804,8 +871,12 @@ function Reader({ tractate, bookmark, onPos, onStop, learned, onToggleAmud, onCl
   );
 }
 
+// שדות שמסונכרנים מול הענן, ואיך ממזגים כל אחד כשיש שינוי מקומי שטרם נשמר
+const FIELDS = ['learned', 'reviews', 'hard', 'journal', 'streak', 'target'];
+
 function App() {
   const [user, setUser] = useState(null);
+  const userRef = useRef(null); // למטפלים שנרשמים פעם אחת (onAuthStateChanged) — תמיד המשתמש הנוכחי
   const [loading, setLoading] = useState(true);
   const [learned, setLearned] = useState({});
   const [journal, setJournal] = useState([]);
@@ -818,74 +889,141 @@ function App() {
   const [editText, setEditText] = useState('');
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [offlineView, setOfflineView] = useState(false); // מצב צפייה-בלבד מ-localStorage כשאין רשת
+  // מצב צפייה-בלבד: 'cached' (עותק מקומי), 'nocache' (אין נתונים), 'denied' (אין הרשאה) — אסור לשנות ולכתוב לענן
+  const [offlineView, setOfflineView] = useState(null);
+  const offlineRef = useRef(null);
+  useEffect(() => { offlineRef.current = offlineView; }, [offlineView]);
   const [rangeState, setRangeState] = useState({});
   const [sinaiOpen, setSinaiOpen] = useState({});
   const [sinaiOpenedCard, setSinaiOpenedCard] = useState({});
   const [reviews, setReviews] = useState({});
   const [reviewsMode, setReviewsMode] = useState({});
-  const reviewsRef = useRef({});
-  useEffect(() => { reviewsRef.current = reviews; }, [reviews]);
   const [backupMsg, setBackupMsg] = useState(null);
   const [streakData, setStreakData] = useState(null);
-  const streakRef = useRef(null);
-  useEffect(() => { streakRef.current = streakData; }, [streakData]);
-  const [notes, setNotes] = useState({});
-  const notesRef = useRef({});
-  useEffect(() => { notesRef.current = notes; }, [notes]);
   const [hard, setHard] = useState({});
+  const [hardMode, setHardMode] = useState({});
   // מסך עיון: סימניות לכל מסכת — { last: '21b:4' (אוטומטי), stop: '23a:2' (📍 ידני), updated }
   const [readerMarks, setReaderMarks] = useState({});
   const readerMarksRef = useRef({});
   const readerSaveT = useRef(null);
   const [readerOpen, setReaderOpen] = useState(null);
-  const [hardMode, setHardMode] = useState({});
-  const hardRef = useRef({});
-  useEffect(() => { hardRef.current = hard; }, [hard]);
+  const [readerStart, setReaderStart] = useState(null);
   const [targetDate, setTargetDate] = useState(null);
-  const [targetInput, setTargetInput] = useState('');
   const [ageInput, setAgeInput] = useState('');
   const [birthInput, setBirthInput] = useState('');
-  const learnedRef = useRef({});
-  useEffect(() => { learnedRef.current = learned; }, [learned]);
-  // מגן מפני דריסת נתוני ענן בנתונים ריקים — שמירה אוטומטית רק אחרי שהטעינה הצליחה
+  const [toastMsg, setToastMsg] = useState(null);
+  const [updateReady, setUpdateReady] = useState(!!window._swUpdated);
+
+  const learnedRef = useRef({}), reviewsRef = useRef({}), hardRef = useRef({}), journalRef = useRef([]), streakRef = useRef(null), targetRef = useRef('');
+  const refs = { learned: learnedRef, reviews: reviewsRef, hard: hardRef, journal: journalRef, streak: streakRef, target: targetRef };
+  const setters = { learned: setLearned, reviews: setReviews, hard: setHard, journal: setJournal, streak: setStreakData, target: applyTarget };
+  function setField(f, v) { refs[f].current = v; setters[f](v); }
+
+  // מגן מפני דריסת נתוני ענן בנתונים ריקים — שמירה רק אחרי שהטעינה הצליחה
   const dataLoadedRef = useRef(false);
-  // שינויים מקומיים שעוד לא אושרו בשרת, לכל שדה (learned/reviews/hard). 0 = מסונכרן.
+  // שינויים מקומיים שעוד לא אושרו בשרת, לכל שדה. 0 = מסונכרן.
   // כשאין שינוי ממתין — השרת קובע (כך ביטול סימון במכשיר אחד עובר לשני ולא "חוזר").
-  // כשיש שינוי ממתין — מיזוג union, כדי לא לאבד אף סימון.
-  const pendingRef = useRef({ learned: 0, reviews: 0, hard: 0 });
+  // כשיש שינוי ממתין — מיזוג, כדי לא לאבד אף סימון; מה שהמשתמש מחק כאן (removedRef) לא חוזר מהשרת.
+  const pendingRef = useRef(Object.fromEntries(FIELDS.map(f => [f, 0])));
+  const wipeRef = useRef({});   // השינוי האחרון בשדה היה מחיקה מכוונת
+  const removedRef = useRef(Object.fromEntries(FIELDS.map(f => [f, new Set()])));
   const seqRef = useRef(0);
-  const refs = { learned: learnedRef, reviews: reviewsRef, hard: hardRef };
-  function persist(field) {
-    const seq = ++seqRef.current;
-    pendingRef.current[field] = seq;
-    if (!user || !dataLoadedRef.current || !navigator.onLine) return;
-    fbSave(user.uid, 'shas-' + field, refs[field].current).then(ok => {
-      if (ok && pendingRef.current[field] === seq) pendingRef.current[field] = 0;
+  const MERGE = {
+    learned: (l, s) => mergeInto(l, s, removedRef.current.learned),
+    reviews: (l, s) => mergeInto(l, s, removedRef.current.reviews),
+    hard:    (l, s) => mergeInto(l, s, removedRef.current.hard),
+    journal: (l, s) => mergeJournal(l, s, removedRef.current.journal),
+    streak:  mergeStreak,
+    target:  () => null,
+  };
+
+  function save(uid, f) {
+    const seq = pendingRef.current[f];
+    return fbSave(uid, 'shas-' + f, refs[f].current, wipeRef.current[f]).then(ok => {
+      if (ok && pendingRef.current[f] === seq) { pendingRef.current[f] = 0; wipeRef.current[f] = false; removedRef.current[f].clear(); }
+      return ok;
     });
   }
-  function flushPending(uid) {
-    for (const f in pendingRef.current) {
-      const seq = pendingRef.current[f];
-      if (!seq) continue;
-      fbSave(uid, 'shas-' + f, refs[f].current).then(ok => { if (ok && pendingRef.current[f] === seq) pendingRef.current[f] = 0; });
-    }
+  // שמירה לענן — גם בלי רשת: Firestore שומר את הכתיבה בתור מקומי ושולח כשהרשת חוזרת
+  function persist(field, removal) {
+    pendingRef.current[field] = ++seqRef.current;
+    wipeRef.current[field] = !!removal;
+    saveLocalSoon();
+    if (!user || !dataLoadedRef.current) return;
+    save(user.uid, field);
   }
+  function flushPending(uid) {
+    for (const f in pendingRef.current) if (pendingRef.current[f]) save(uid, f);
+  }
+
+  // עותק מקומי מלא (לצפייה כשאין רשת) — מתעדכן אחרי כל שינוי
+  const localT = useRef(null);
+  function saveLocalNow() {
+    clearTimeout(localT.current); localT.current = null;
+    const u = userRef.current;
+    if (!dataLoadedRef.current || !u) return;
+    const d = { _uid: u.uid };
+    for (const f of FIELDS) {
+      const v = refs[f].current;
+      if (f === 'target') { if (v) d['shas-target'] = v; }
+      else if (v != null) d['shas-' + f] = JSON.stringify(v);
+    }
+    d['shas-reader'] = JSON.stringify(readerMarksRef.current);
+    try { localStorage.setItem('shas-fulldata', JSON.stringify(d)); } catch(e) {}
+  }
+  function saveLocalSoon() { if (!localT.current) localT.current = setTimeout(saveLocalNow, 800); }
+  function clearLocal() { try { ['shas-fulldata', 'shas-learned', 'shas-reader'].forEach(k => localStorage.removeItem(k)); } catch(e) {} }
+
+  // במצב צפייה-בלבד — לא משנים כלום (אחרת השינוי נראה שמור אבל הולך לאיבוד)
+  function readOnly() {
+    if (!offlineRef.current) return false;
+    toast('מצב צפייה בלבד — אין חיבור לשרת, ולכן אי אפשר לשנות כרגע.', 'info');
+    return true;
+  }
+
+  // יעד: יעדים ישנים חושבו בשנה העברית הלא נכונה — מחשבים מחדש מתאריך הלידה והגיל
+  function normalizeTarget(raw) {
+    if (!raw) return '';
+    try {
+      const o = JSON.parse(raw);
+      if (o && o.birth && o.birth.length === 10 && o.age) {
+        const b = hebrewBirthdayAtAge(parseLocalDate(o.birth), o.age);
+        if (b) return JSON.stringify({ ...o, date: b.gregorian.toISOString(), hebrewLabel: b.hebrew });
+      }
+    } catch(e) {}
+    return raw;
+  }
+  function applyTarget(raw) {
+    setTargetDate(raw || null);
+    let o = null; try { o = JSON.parse(raw); } catch(e) {}
+    if (o && typeof o === 'object') {
+      setAgeInput(o.age != null ? String(o.age) : '');
+      const b = o.birth || '';
+      setBirthInput(b.length === 7 ? b + '-01' : b);
+    } else if (!raw) { setAgeInput(''); setBirthInput(''); }
+  }
+
+  useEffect(() => {
+    let t;
+    const onToast = e => { setToastMsg(e.detail); clearTimeout(t); t = setTimeout(() => setToastMsg(null), 7000); };
+    const onUpdate = () => setUpdateReady(true);
+    window.addEventListener('shas-toast', onToast);
+    window.addEventListener('shas-update', onUpdate);
+    return () => { clearTimeout(t); window.removeEventListener('shas-toast', onToast); window.removeEventListener('shas-update', onUpdate); };
+  }, []);
 
   useEffect(() => {
     if (!user) return;
     const uid = user.uid;
-    const flushLearned = () => {
-      if (!dataLoadedRef.current) return;
-      flushPending(uid); // רק מה שלא נשמר — מכשיר שלא שינה כלום לא דורס את הענן
+    const flush = () => {
+      saveLocalNow();
+      if (dataLoadedRef.current) flushPending(uid); // רק מה שלא נשמר — מכשיר שלא שינה כלום לא דורס את הענן
     };
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') flushLearned();
-    };
-    window.addEventListener('pagehide', flushLearned);
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      window.removeEventListener('pagehide', flushLearned);
+      window.removeEventListener('pagehide', flush);
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [user]);
@@ -893,10 +1031,11 @@ function App() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      if (user && dataLoadedRef.current) {
+      if (!user) return;
+      if (offlineRef.current) { window.location.reload(); return; } // נטען מחדש מהשרת — יוצאים ממצב צפייה-בלבד
+      if (dataLoadedRef.current) {
         flushPending(user.uid);
-        if (streakRef.current) fbSave(user.uid, 'shas-streak', streakRef.current);
-        if (Object.keys(notesRef.current).length) fbSave(user.uid, 'shas-notes', notesRef.current);
+        if (Object.keys(readerMarksRef.current).length) fbSave(user.uid, 'shas-reader', readerMarksRef.current);
       }
     };
     const handleOffline = () => setIsOnline(false);
@@ -908,72 +1047,51 @@ function App() {
     };
   }, [user]);
 
+  // מאכלס את כל ה-state מתוך אובייקט נתונים (מהשרת או מהעותק המקומי)
+  function hydrate(data) {
+    const parse = (k, def) => { try { return data[k] ? JSON.parse(data[k]) : def; } catch(e) { return def; } };
+    setField('learned', migrateKeys(parse('shas-learned', {})) || {});
+    setField('reviews', migrateKeys(parse('shas-reviews', {})) || {});
+    setField('hard', migrateKeys(parse('shas-hard', {})) || {});
+    const j = parse('shas-journal', []);
+    setField('journal', Array.isArray(j) ? j : []);
+    setField('streak', parse('shas-streak', null));
+    const rm = parse('shas-reader', {});
+    readerMarksRef.current = rm && typeof rm === 'object' ? rm : {}; setReaderMarks(readerMarksRef.current);
+    setField('target', normalizeTarget(data['shas-target'] || ''));
+  }
+
   useEffect(() => {
     const { auth, onAuthStateChanged, getRedirectResult } = window._fb;
     getRedirectResult(auth).catch(() => {});
     return onAuthStateChanged(auth, async u => {
+      userRef.current = u;
       setUser(u);
       if (u) {
-        // מאכלס את כל ה-state מתוך אובייקט נתונים (מהשרת או מהעותק המקומי)
-        const hydrate = (data) => {
-          try { setLearned(migrateKeys(data['shas-learned'] ? JSON.parse(data['shas-learned']) : {})); } catch(e) { setLearned({}); }
-          try { setJournal(data['shas-journal'] ? JSON.parse(data['shas-journal']) : []); } catch(e) { setJournal([]); }
-          try { setReviews(migrateKeys(data['shas-reviews'] ? JSON.parse(data['shas-reviews']) : {})); } catch(e) { setReviews({}); }
-          try { const sd = data['shas-streak'] ? JSON.parse(data['shas-streak']) : null; setStreakData(sd); streakRef.current = sd; } catch(e) { setStreakData(null); }
-          try { setNotes(data['shas-notes'] ? JSON.parse(data['shas-notes']) : {}); } catch(e) { setNotes({}); }
-          try { const rm = data['shas-reader'] ? JSON.parse(data['shas-reader']) : {}; readerMarksRef.current = rm; setReaderMarks(rm); } catch(e) {}
-          try { const hd = migrateKeys(data['shas-hard'] ? JSON.parse(data['shas-hard']) : {}); setHard(hd); hardRef.current = hd; } catch(e) { setHard({}); }
-          if (data['shas-target']) {
-            let raw = data['shas-target'];
-            try {
-              // יעדים ישנים חושבו בשנה העברית הלא נכונה — מחשבים מחדש מתאריך הלידה והגיל
-              const o = JSON.parse(raw);
-              if (o && o.birth && o.birth.length === 10 && o.age) {
-                const b = hebrewBirthdayAtAge(parseLocalDate(o.birth), o.age);
-                if (b) raw = JSON.stringify({ ...o, date: b.gregorian.toISOString(), hebrewLabel: b.hebrew });
-              }
-            } catch(e) {}
-            setTargetDate(raw); setTargetInput(raw);
-            try {
-              const o = JSON.parse(raw);
-              setAgeInput(String(o.age));
-              const b = o.birth || '';
-              setBirthInput(b.length === 7 ? b + '-01' : b);
-            } catch(e) {}
-          }
-        };
+        document.title = 'מעקב הש״ס · ' + (u.displayName || '');
         const data = await fbLoad(u.uid);
-        if (data === null) {
-          // טעינה מהשרת נכשלה (אין רשת/חסימה) — נציג עותק מקומי במצב צפייה-בלבד (בלי לכתוב לענן)
+        if (data.error) {
+          // טעינה מהשרת נכשלה — מציגים עותק מקומי במצב צפייה-בלבד (בלי לכתוב לענן)
           dataLoadedRef.current = false;
           window._shasDataLoaded = false;
           let cached = null;
           try { cached = JSON.parse(localStorage.getItem('shas-fulldata') || 'null'); } catch(e) {}
-          if (cached) {
-            hydrate(cached);
-            setOfflineView(true);
-          } else {
-            alert('⚠️ לא הצלחנו לטעון את הנתונים מהענן, ואין עותק מקומי במכשיר הזה.\n\nבדוק חיבור לאינטרנט (או VPN/סינון שחוסם את firestore.googleapis.com) ורענן את הדף.');
-          }
-          document.title = 'מעקב הש״ס · ' + (u.displayName || '');
+          if (cached && (!cached._uid || cached._uid === u.uid)) { hydrate(cached); setOfflineView(data.error === 'denied' ? 'denied' : 'cached'); }
+          else setOfflineView(data.error === 'denied' ? 'denied' : 'nocache');
           setLoading(false);
           return;
         }
         dataLoadedRef.current = true;
         window._shasDataLoaded = true;
-        setOfflineView(false);
+        setOfflineView(null);
         hydrate(data);
-        // עותקי שחזור מקומיים: learned בנפרד + כל הנתונים (לצפייה אופליין)
-        try { if (data['shas-learned']) localStorage.setItem('shas-learned', data['shas-learned']); } catch(e) {}
-        try { localStorage.setItem('shas-fulldata', JSON.stringify(data)); } catch(e) {}
-        document.title = 'מעקב הש״ס · ' + (u.displayName || '');
+        saveLocalNow();
       }
       setLoading(false);
     });
   }, []);
 
   // סנכרון חי בין מכשירים — כל שינוי שמאושר בשרת. מתעלם מכתיבות שלנו ומהמטמון.
-  // אין שינוי מקומי ממתין → מצב השרת (כך גם ביטול סימון עובר). יש שינוי ממתין → union, לא מאבדים סימון.
   useEffect(() => {
     if (!user) return;
     const { db, doc, onSnapshot } = window._fb;
@@ -981,31 +1099,32 @@ function App() {
       if (!snap.exists() || snap.metadata.hasPendingWrites || snap.metadata.fromCache) return;
       if (!window._shasDataLoaded) return; // רק אחרי שהטעינה הראשונית הצליחה
       const d = snap.data();
+      let changed = false;
       try {
         // סימניות עיון: לכל מסכת — הגרסה המעודכנת יותר מנצחת
         const srv = d['shas-reader'] ? JSON.parse(d['shas-reader']) : null;
         if (srv) {
-          let changed = false; const nm = { ...readerMarksRef.current };
-          for (const t in srv) if (!nm[t] || (srv[t].updated || 0) > (nm[t].updated || 0)) { nm[t] = srv[t]; changed = true; }
-          if (changed) { readerMarksRef.current = nm; setReaderMarks(nm); }
+          let ch = false; const nm = { ...readerMarksRef.current };
+          for (const t in srv) if (!nm[t] || (srv[t].updated || 0) > (nm[t].updated || 0)) { nm[t] = srv[t]; ch = true; }
+          if (ch) { readerMarksRef.current = nm; setReaderMarks(nm); changed = true; }
         }
       } catch(e) {}
-      const setters = { learned: setLearned, reviews: setReviews, hard: setHard };
-      for (const f of ['learned', 'reviews', 'hard']) {
+      for (const f of FIELDS) {
         try {
           const raw = d['shas-' + f];
-          if (!raw) continue;
-          const server = migrateKeys(JSON.parse(raw));
-          if (!server || typeof server !== 'object') continue;
+          if (raw === undefined) continue;
+          let server = f === 'target' ? normalizeTarget(raw) : JSON.parse(raw);
+          if (f === 'learned' || f === 'reviews' || f === 'hard') server = migrateKeys(server);
+          if (server === null || typeof server !== (f === 'target' ? 'string' : 'object')) continue;
           const local = refs[f].current;
           let next = null;
-          if (pendingRef.current[f]) next = mergeInto(local, server); // יש שינוי מקומי שטרם נשמר — לא מאבדים כלום
-          else if (JSON.stringify(server) !== JSON.stringify(local)) next = server; // מסונכרן — מאמצים את מצב השרת (כולל ביטולי סימון)
-          if (!next) continue;
-          refs[f].current = next; setters[f](next);
-          if (f === 'learned') { try { localStorage.setItem('shas-learned', JSON.stringify(next)); } catch(e){} }
-        } catch(e){}
+          if (pendingRef.current[f]) next = MERGE[f](local, server); // יש שינוי מקומי שטרם נשמר — לא מאבדים כלום
+          else if (JSON.stringify(server) !== JSON.stringify(local)) next = server; // מסונכרן — מאמצים את מצב השרת (כולל מחיקות)
+          if (next === null) continue;
+          setField(f, next); changed = true;
+        } catch(e) {}
       }
+      if (changed) saveLocalSoon();
     }, err => { console.warn('snapshot listener error', err); });
     return () => unsub();
   }, [user]);
@@ -1013,84 +1132,130 @@ function App() {
   function signIn() {
     const { auth, provider, signInWithPopup, signInWithRedirect } = window._fb;
     signInWithPopup(auth, provider).catch(err => {
-      if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') {
-        signInWithRedirect(auth, provider);
-      }
+      if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user') signInWithRedirect(auth, provider);
+      else if (err.code !== 'auth/cancelled-popup-request') toast('הכניסה נכשלה: ' + (err.code || err.message));
     });
   }
-  function signOutUser() { const { auth, signOut } = window._fb; signOut(auth); try { localStorage.removeItem('shas-fulldata'); localStorage.removeItem('shas-learned'); localStorage.removeItem('shas-reader'); } catch(e) {} readerMarksRef.current = {}; setReaderMarks({}); setReaderOpen(null); window._shasDataLoaded = false; dataLoadedRef.current = false; setLearned({}); setJournal([]); setReviews({}); setReviewsMode({}); setStreakData(null); setNotes({}); setHard({}); setHardMode({}); setTargetDate(null); setTargetInput(''); setAgeInput(''); setBirthInput(''); document.title = 'מעקב הש״ס'; }
+
+  // מנקה את כל מה שנשמר במכשיר (כולל מטמון Firestore ב-IndexedDB) — חשוב במחשב משותף — וטוען מחדש
+  async function wipeDeviceAndReload() {
+    const { auth, signOut, db, terminate, clearIndexedDbPersistence } = window._fb;
+    window._shasDataLoaded = false; dataLoadedRef.current = false;
+    clearLocal();
+    try { await signOut(auth); } catch(e) {}
+    try { await terminate(db); await clearIndexedDbPersistence(db); } catch(e) { console.warn('clear cache', e); }
+    window.location.reload();
+  }
+  async function signOutUser() {
+    const { db, waitForPendingWrites } = window._fb;
+    if (user && dataLoadedRef.current) flushPending(user.uid);
+    const synced = await Promise.race([waitForPendingWrites(db).then(() => true, () => false), new Promise(r => setTimeout(() => r(false), 4000))]);
+    if (!synced && dataLoadedRef.current && !confirm('יש שינויים שעוד לא הגיעו לענן (אין חיבור?). אם תצא עכשיו הם יאבדו.\nלצאת בכל זאת?')) return;
+    await wipeDeviceAndReload();
+  }
+  async function deleteAccount() {
+    if (!user) return;
+    if (!navigator.onLine || offlineRef.current) { toast('מחיקת חשבון דורשת חיבור לאינטרנט.'); return; }
+    if (!confirm('מחיקת החשבון תמחק לצמיתות את כל נתוני הלימוד שלך: סימונים, חזרות, דפים קשים, יומן, יעד וסימניות.\nאין דרך לשחזר. להמשיך?')) return;
+    const typed = prompt('לאישור סופי, הקלד את המילה: מחק');
+    if (!typed || typed.trim() !== 'מחק') return;
+    const { auth, db, doc, deleteDoc, deleteUser, reauthenticateWithPopup, provider } = window._fb;
+    window._shasDataLoaded = false; dataLoadedRef.current = false; // שום שמירה לא תיצור את המסמך מחדש
+    try { await deleteDoc(doc(db, 'users', user.uid)); }
+    catch(e) {
+      window._shasDataLoaded = true; dataLoadedRef.current = true;
+      toast('המחיקה נכשלה (' + (e.code || 'שגיאה') + '). אפשר לבקש מחיקה במייל: amichai85@gmail.com');
+      return;
+    }
+    try { await deleteUser(auth.currentUser); }
+    catch(e) {
+      if (e.code === 'auth/requires-recent-login') {
+        try { await reauthenticateWithPopup(auth.currentUser, provider); await deleteUser(auth.currentUser); } catch(e2) {}
+      }
+    }
+    alert('כל נתוני הלימוד שלך נמחקו.');
+    await wipeDeviceAndReload();
+  }
 
   function setReaderMark(t, patch, immediate) {
     const nm = { ...readerMarksRef.current, [t]: { ...(readerMarksRef.current[t] || {}), ...patch, updated: Date.now() } };
     if (patch.stop === null) delete nm[t].stop;
-    readerMarksRef.current = nm; setReaderMarks(nm);
-    try { localStorage.setItem('shas-reader', JSON.stringify(nm)); } catch(e) {}
+    readerMarksRef.current = nm;
+    // 'last' מתעדכן בכל גלילה — לא מרנדרים מחדש את כל האפליקציה; נכנס ל-state בסגירת המסך
+    if (immediate) setReaderMarks(nm);
+    saveLocalSoon();
     clearTimeout(readerSaveT.current);
-    const save = () => { if (user && navigator.onLine) fbSave(user.uid, 'shas-reader', readerMarksRef.current); };
+    const save = () => { readerSaveT.current = null; if (user) fbSave(user.uid, 'shas-reader', readerMarksRef.current); };
     if (immediate) save(); else readerSaveT.current = setTimeout(save, 4000);
   }
+  function openReader(t, start) { setReaderStart(start || null); setReaderOpen(t); }
   function closeReader() {
-    if (readerSaveT.current) { clearTimeout(readerSaveT.current); readerSaveT.current = null; if (user && navigator.onLine) fbSave(user.uid, 'shas-reader', readerMarksRef.current); }
-    setReaderOpen(null);
+    if (readerSaveT.current) { clearTimeout(readerSaveT.current); readerSaveT.current = null; if (user) fbSave(user.uid, 'shas-reader', readerMarksRef.current); }
+    setReaderMarks({ ...readerMarksRef.current });
+    setReaderOpen(null); setReaderStart(null);
+  }
+
+  // רצף — מתעדכן בפעם הראשונה ביום שמסמנים עמוד
+  function bumpStreak() {
+    const todayStr = todayDateStr();
+    const sd = streakRef.current;
+    if (sd && sd.date === todayStr) return;
+    const nsd = { date: todayStr, count: (sd && sd.date === yesterdayDateStr()) ? (sd.count || 0) + 1 : 1 };
+    setField('streak', nsd);
+    persist('streak');
+  }
+  // removed: מפתחות שהמשתמש מחק עכשיו — לא יחזרו ממיזוג עם השרת
+  function commitLearned(nl, added, removed) {
+    for (const k of removed) removedRef.current.learned.add(k);
+    for (const k of added) removedRef.current.learned.delete(k);
+    setField('learned', nl);
+    if (added.length) bumpStreak();
+    persist('learned', removed.length > 0);
   }
 
   function toggleAmud(tractate, daf, amud) {
+    if (readOnly()) return;
     const k = amudKey(tractate, daf, amud);
-    const nl = { ...learned };
-    if (nl[k]) { delete nl[k]; } else {
+    const nl = { ...learnedRef.current };
+    if (nl[k]) { delete nl[k]; commitLearned(nl, [], [k]); }
+    else {
       nl[k] = true; setFlash(k); setTimeout(() => setFlash(null), 350);
-      // עדכון רצף — רק בפעם הראשונה של היום
-      const todayStr = todayDateStr();
-      const sd = streakRef.current;
-      if (!sd || sd.date !== todayStr) {
-        const yd = new Date(); yd.setDate(yd.getDate() - 1);
-        const yStr = yd.getFullYear() + '-' + String(yd.getMonth()+1).padStart(2,'0') + '-' + String(yd.getDate()).padStart(2,'0');
-        const newCount = (sd && sd.date === yStr) ? (sd.count || 0) + 1 : 1;
-        const nsd = { date: todayStr, count: newCount };
-        streakRef.current = nsd;
-        setStreakData(nsd);
-        if (user && navigator.onLine) fbSave(user.uid, 'shas-streak', nsd);
-      }
+      commitLearned(nl, [k], []);
     }
-    learnedRef.current = nl;
-    setLearned(nl);
-    try { localStorage.setItem('shas-learned', JSON.stringify(nl)); } catch(e) {}
-    persist('learned');
   }
 
-  function markAll(tractate, dafim) {
-    const nl = { ...learned };
-    for (const d of dafList(TRACTATE_BY_NAME[tractate])) { nl[amudKey(tractate,d,'א')] = true; nl[amudKey(tractate,d,'ב')] = true; }
-    learnedRef.current = nl;
-    setLearned(nl); persist('learned');
+  function markAll(tractate) {
+    if (readOnly()) return;
+    const nl = { ...learnedRef.current }, added = [];
+    for (const [d, a] of amudList(TRACTATE_BY_NAME[tractate])) { const k = amudKey(tractate, d, a); if (!nl[k]) { nl[k] = true; added.push(k); } }
+    if (added.length) commitLearned(nl, added, []);
   }
 
-  function unmarkAll(tractate, dafim) {
-    const nl = { ...learned };
-    for (const d of dafList(TRACTATE_BY_NAME[tractate])) { delete nl[amudKey(tractate,d,'א')]; delete nl[amudKey(tractate,d,'ב')]; }
-    learnedRef.current = nl;
-    setLearned(nl); persist('learned');
+  function unmarkAll(tractate) {
+    if (readOnly()) return;
+    if (!confirm('לנקות את כל הסימונים במסכת ' + tractate + '?')) return;
+    const nl = { ...learnedRef.current }, removed = [];
+    for (const d of dafList(TRACTATE_BY_NAME[tractate])) for (const a of ['א','ב']) { const k = amudKey(tractate, d, a); if (k in nl) { delete nl[k]; removed.push(k); } }
+    if (removed.length) commitLearned(nl, [], removed);
   }
 
   function updateRange(name, updates) {
     setRangeState(rs => ({ ...rs, [name]: { ...rs[name], ...updates } }));
   }
 
-  function markRange(tractate, dafim, fromDaf, fromAmud, toDaf, toAmud) {
-    const aIdx = a => a === 'א' ? 0 : 1;
-    const fromIdx = (fromDaf - 2) * 2 + aIdx(fromAmud);
-    const toIdx   = (toDaf  - 2) * 2 + aIdx(toAmud);
-    if (fromIdx > toIdx) return;
-    const nl = { ...learned };
-    for (const d of dafList(TRACTATE_BY_NAME[tractate])) {
-      for (const amud of ['א','ב']) {
-        const idx = (d - 2) * 2 + aIdx(amud);
-        if (idx >= fromIdx && idx <= toIdx) nl[amudKey(tractate, d, amud)] = true;
-      }
-    }
-    learnedRef.current = nl;
-    setLearned(nl);
-    persist('learned');
+  // מסמן את כל העמודים הקיימים בטווח (כולל). מחזיר false אם הטווח לא תקין
+  function markRange(tractate, fromDaf, fromAmud, toDaf, toAmud) {
+    if (readOnly()) return false;
+    const list = amudList(TRACTATE_BY_NAME[tractate]);
+    const pos = (d, a) => list.findIndex(([dd, aa]) => dd === d && aa === a);
+    const i = pos(fromDaf, fromAmud);
+    let j = pos(toDaf, toAmud);
+    if (j < 0) j = pos(toDaf, 'א'); // ע״ב שלא קיים בסוף המסכת → עד ע״א
+    if (i < 0 || j < 0 || i > j) { toast('טווח לא תקין — ״מדף״ צריך להיות לפני ״עד דף״.', 'info'); return false; }
+    const nl = { ...learnedRef.current }, added = [];
+    for (const [d, a] of list.slice(i, j + 1)) { const k = amudKey(tractate, d, a); if (!nl[k]) { nl[k] = true; added.push(k); } }
+    if (added.length) commitLearned(nl, added, []);
+    return true;
   }
 
   // ספירת עמודים שנלמדו לכל מסכת — מחושב פעם אחת בכל שינוי ב-learned (במקום בכל רינדור)
@@ -1098,69 +1263,74 @@ function App() {
     const m = {};
     for (const sed of SHAS) for (const t of sed.tractates) {
       let c = 0;
-      for (const d of dafList(t)) {
-        if (learned[amudKey(t.name,d,'א')]) c++;
-        if (learned[amudKey(t.name,d,'ב')]) c++;
-      }
+      for (const [d, a] of amudList(t)) if (learned[amudKey(t.name, d, a)]) c++;
       m[t.name] = c;
     }
     return m;
   }, [learned]);
   const countT = (name) => counts[name] || 0;
+  const hardTractates = useMemo(() => new Set(Object.keys(hard).map(k => k.split('||')[0])), [hard]);
 
-  function addEntry() {
-    if (!newEntry.trim()) return;
-    const nj = [{ id: Date.now(), date: today(), text: newEntry.trim() }, ...journal];
-    setJournal(nj); if (user) fbSave(user.uid, 'shas-journal', nj); setNewEntry('');
+  function setJournalSaved(nj, removedId) {
+    if (removedId != null) removedRef.current.journal.add(removedId);
+    setField('journal', nj);
+    persist('journal', removedId != null);
   }
-
-  function deleteEntry(id) { const nj = journal.filter(e => e.id !== id); setJournal(nj); if (user) fbSave(user.uid, 'shas-journal', nj); }
-
+  function addEntry() {
+    if (!newEntry.trim() || readOnly()) return;
+    setJournalSaved([{ id: Date.now(), date: today(), text: newEntry.trim() }, ...journalRef.current]);
+    setNewEntry('');
+  }
+  function deleteEntry(id) { if (readOnly()) return; setJournalSaved(journalRef.current.filter(e => e.id !== id), id); }
   function saveEdit(id) {
-    const nj = journal.map(e => e.id === id ? { ...e, text: editText } : e);
-    setJournal(nj); if (user) fbSave(user.uid, 'shas-journal', nj); setEditingId(null);
+    if (readOnly()) return;
+    if (!editText.trim()) { toast('רשומה ריקה — כדי למחוק השתמש בכפתור המחיקה.', 'info'); return; }
+    setJournalSaved(journalRef.current.map(e => e.id === id ? { ...e, text: editText.trim() } : e));
+    setEditingId(null);
   }
 
   function toggleReview(tractate, daf, amud) {
+    if (readOnly()) return;
     const k = amudKey(tractate, daf, amud);
     if (!learnedRef.current[k]) return;
     const nr = { ...reviewsRef.current };
-    const next = ((nr[k] || 0) % 9) + 1;
-    // 9 → חזרה ל-0 (מחיקה)
-    if (next === 1 && (nr[k] || 0) === 9) { delete nr[k]; } else { nr[k] = next; }
-    reviewsRef.current = nr;
-    setReviews(nr);
-    persist('reviews');
+    const cur = nr[k] || 0;
+    // 1→2→…→9 → חזרה ל-0 (מחיקה)
+    if (cur >= 9) { delete nr[k]; removedRef.current.reviews.add(k); } else { nr[k] = cur + 1; removedRef.current.reviews.delete(k); }
+    setField('reviews', nr);
+    persist('reviews', cur >= 9);
   }
 
   function toggleHard(tractate, daf, amud) {
+    if (readOnly()) return;
     const k = amudKey(tractate, daf, amud);
     if (!learnedRef.current[k]) return;
     const nh = { ...hardRef.current };
-    if (nh[k]) { delete nh[k]; } else { nh[k] = true; }
-    hardRef.current = nh;
-    setHard(nh);
-    persist('hard');
+    const removing = !!nh[k];
+    if (removing) { delete nh[k]; removedRef.current.hard.add(k); } else { nh[k] = true; removedRef.current.hard.delete(k); }
+    setField('hard', nh);
+    persist('hard', removing);
+  }
+
+  function saveTarget(obj) {
+    if (readOnly()) return;
+    setField('target', obj ? JSON.stringify(obj) : '');
+    persist('target', !obj);
   }
 
   async function syncToCloud() {
     if (!user) return;
-    if (!dataLoadedRef.current) { setBackupMsg({ ok: false, text: '✗ הנתונים לא נטענו' }); setTimeout(() => setBackupMsg(null), 2500); return; }
+    const done = (ok, text) => { setBackupMsg({ ok, text }); setTimeout(() => setBackupMsg(null), 2500); };
+    if (!dataLoadedRef.current) return done(false, '✗ הנתונים לא נטענו');
+    if (!navigator.onLine) return done(false, '✗ אין רשת');
     const seqs = { ...pendingRef.current };
     const results = await Promise.all([
-      fbSave(user.uid, 'shas-learned', learnedRef.current),
-      fbSave(user.uid, 'shas-reviews', reviewsRef.current),
-      fbSave(user.uid, 'shas-hard', hardRef.current),
-      fbSave(user.uid, 'shas-journal', journal),
-      streakRef.current ? fbSave(user.uid, 'shas-streak', streakRef.current) : true,
-      Object.keys(notesRef.current).length ? fbSave(user.uid, 'shas-notes', notesRef.current) : true,
-      targetDate ? fbSave(user.uid, 'shas-target', targetDate) : true,
+      ...FIELDS.filter(f => f !== 'streak' || streakRef.current).map(f => fbSave(user.uid, 'shas-' + f, refs[f].current, wipeRef.current[f])),
       Object.keys(readerMarksRef.current).length ? fbSave(user.uid, 'shas-reader', readerMarksRef.current) : true,
     ]);
     const ok = results.every(Boolean);
-    if (ok) for (const f in seqs) if (pendingRef.current[f] === seqs[f]) pendingRef.current[f] = 0;
-    setBackupMsg(ok ? { ok: true, text: '✓ גובה' } : { ok: false, text: '✗ שגיאה' });
-    setTimeout(() => setBackupMsg(null), 2500);
+    if (ok) for (const f in seqs) if (pendingRef.current[f] === seqs[f]) { pendingRef.current[f] = 0; wipeRef.current[f] = false; removedRef.current[f].clear(); }
+    done(ok, ok ? '✓ גובה' : '✗ שגיאה');
   }
 
   const totalLearned = Object.values(counts).reduce((a, b) => a + b, 0); // רק עמודים קיימים (מתעלם ממפתחות ישנים/שגויים)
@@ -1180,12 +1350,27 @@ function App() {
   const weeksLeft = TARGET ? Math.max(1, (TARGET - new Date()) / (7*24*60*60*1000)) : null;
   const amudimPerWeek = weeksLeft ? (remaining / weeksLeft).toFixed(1) : null;
   const dafsPerWeek = weeksLeft ? (remaining / weeksLeft / 2).toFixed(1) : null;
-  const doneMasachtot = SHAS.reduce((s, sed) => s + sed.tractates.filter(t => countT(t.name, t.dafim) === t.dafim * 2).length, 0);
+  const targetPast = TARGET && TARGET < new Date();
+  const doneMasachtot = SHAS.reduce((s, sed) => s + sed.tractates.filter(t => countT(t.name) === amudCount(t)).length, 0);
+
+  // הודעות צפות: שגיאות/מידע, וגרסה חדשה שמוכנה (במקום רענון אוטומטי שמאבד טיוטות)
+  const overlays = (<>
+    {toastMsg && <div role="status" aria-live="polite" className="toast" style={{ background: toastMsg.kind === 'info' ? '#1a2d6e' : '#8b2020', color:'#fff' }}>
+      <span>{toastMsg.text}</span>
+      <button onClick={() => setToastMsg(null)} aria-label="סגור הודעה" style={{ background:'none', border:'none', color:'#fff', fontSize:'1rem', cursor:'pointer', padding:'0 0.2rem' }}>✕</button>
+    </div>}
+    {updateReady && !toastMsg && <div role="status" className="toast" style={{ background:'#1a7a50', color:'#fff' }}>
+      <span>גרסה חדשה של האתר מוכנה</span>
+      <button onClick={() => { saveLocalNow(); window.location.reload(); }} style={{ background:'#fff', color:'#1a7a50', border:'none', borderRadius:6, padding:'0.25rem 0.7rem', fontWeight:700, cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>רענן</button>
+      <button onClick={() => setUpdateReady(false)} aria-label="לא עכשיו" style={{ background:'none', border:'none', color:'#fff', cursor:'pointer' }}>✕</button>
+    </div>}
+  </>);
 
   if (loading) return (
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100vh', flexDirection:'column', gap:'1rem', background:'#f2f5fc' }}>
+      {overlays}
       <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'3rem', color:'#2a40a0' }}>ש</div>
-      <div style={{ color:'#7a8aaa', fontSize:'0.9rem' }}>טוען...</div>
+      <div style={{ color:'#5f6e8e', fontSize:'0.9rem' }}>טוען...</div>
     </div>
   );
 
@@ -1201,17 +1386,20 @@ function App() {
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" style={{ width:22, height:22 }} />
         כניסה עם Google
       </button>
-      <div style={{ marginTop:'5rem', fontSize:'0.72rem', color:'rgba(255,255,255,0.25)', fontFamily:"'Heebo',sans-serif" }}>נוצר ע"י עמיחי צדוק · <a href="privacy.html" style={{ color:'rgba(255,255,255,0.4)' }}>מדיניות פרטיות</a></div>
+      <div style={{ marginTop:'5rem', fontSize:'0.75rem', color:'rgba(255,255,255,0.65)', fontFamily:"'Heebo',sans-serif" }}>נוצר ע"י עמיחי צדוק · <a href="privacy.html" style={{ color:'rgba(255,255,255,0.8)' }}>מדיניות פרטיות</a></div>
+      {overlays}
     </div>
   );
 
   return (
-    <div dir="rtl" style={{ fontFamily:"'Heebo',sans-serif", background:'#f2f5fc', minHeight:'100vh', color:'#1a2340' }}>
-      {readerOpen && <Reader tractate={readerOpen} bookmark={readerMarks[readerOpen]} learned={learned} onToggleAmud={toggleAmud}
-        onPos={k => setReaderMark(readerOpen, { last: k })} onStop={k => setReaderMark(readerOpen, { stop: k }, true)} onClose={closeReader} />}
+    <>
+    {readerOpen && <Reader tractate={readerOpen} bookmark={readerMarks[readerOpen]} start={readerStart} learned={learned} onToggleAmud={toggleAmud}
+      onPos={k => setReaderMark(readerOpen, { last: k })} onStop={k => setReaderMark(readerOpen, { stop: k }, true)} onClose={closeReader} />}
+    {overlays}
+    <div dir="rtl" inert={readerOpen ? '' : undefined} style={{ fontFamily:"'Heebo',sans-serif", background:'#f2f5fc', minHeight:'100vh', color:'#1a2340' }}>
 
       {/* HEADER */}
-      <div style={{ background:'linear-gradient(135deg,#1a2d6e 0%,#2a40a0 100%)', boxShadow:'0 3px 20px rgba(20,40,100,0.3)', position:'sticky', top:0, zIndex:100 }}>
+      <div className="on-dark safe-top" style={{ background:'linear-gradient(135deg,#1a2d6e 0%,#2a40a0 100%)', boxShadow:'0 3px 20px rgba(20,40,100,0.3)', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ padding:'0.9rem 1.2rem 0.5rem', maxWidth:1080, margin:'0 auto', display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:'0.6rem' }}>
           <div>
             <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:900, color:'#e8f0ff', lineHeight:1.15 }}>מעקב הש״ס · {user?.displayName || ''}</div>
@@ -1219,21 +1407,21 @@ function App() {
           </div>          <div style={{ display:'flex', gap:'1.2rem', alignItems:'center', flexWrap:'wrap' }}>
             <div style={{ textAlign:'center' }}>
               <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.4rem', fontWeight:700, color:'#e8d870', lineHeight:1 }}>{totalLearned.toLocaleString()}</div>
-              <div style={{ fontSize:'0.6rem', color:'#7a90cc' }}>עמודים</div>
+              <div style={{ fontSize:'0.6rem', color:'#b3c2ea' }}>עמודים</div>
             </div>
             <div style={{ textAlign:'center' }}>
               <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.4rem', fontWeight:700, color:'#e8d870', lineHeight:1 }}>{doneMasachtot}</div>
-              <div style={{ fontSize:'0.6rem', color:'#7a90cc' }}>מסכתות</div>
+              <div style={{ fontSize:'0.6rem', color:'#b3c2ea' }}>מסכתות</div>
             </div>
             {calcStreak(streakData) > 0 && <div style={{ textAlign:'center' }}>
               <div style={{ fontSize:'1.25rem', fontWeight:700, color:'#fb923c', lineHeight:1 }}>🔥{calcStreak(streakData)}</div>
-              <div style={{ fontSize:'0.6rem', color:'#7a90cc' }}>ימים ברצף</div>
+              <div style={{ fontSize:'0.6rem', color:'#b3c2ea' }}>ימים ברצף</div>
             </div>}
             <div style={{ width:140 }}>
               <div style={{ background:'rgba(255,255,255,0.12)', borderRadius:99, height:7, overflow:'hidden', marginBottom:'0.25rem' }}>
                 <div style={{ height:'100%', width:pct+'%', background:'linear-gradient(90deg,#c8a010,#e8d870)', borderRadius:99, transition:'width 0.5s' }} />
               </div>
-              <div style={{ fontSize:'0.66rem', color:'#7a90cc', display:'flex', justifyContent:'space-between' }}>
+              <div style={{ fontSize:'0.66rem', color:'#b3c2ea', display:'flex', justifyContent:'space-between' }}>
                 <span style={{ color:'#e8d870', fontWeight:700, fontSize:'0.78rem' }}>{pct}%</span>
                 <span>מכל הש״ס</span>
               </div>
@@ -1242,7 +1430,9 @@ function App() {
         </div>
 
         {/* Quote */}
-        <div onClick={() => setQuoteOpen(q => !q)} style={{ background:'rgba(0,0,0,0.18)', borderTop:'1px solid rgba(255,255,255,0.08)', padding:'0.5rem 1.2rem', cursor:'pointer' }}>
+        <div role="button" tabIndex={0} aria-expanded={quoteOpen} aria-label={quoteOpen ? 'צמצם את הציטוט' : 'הרחב את הציטוט מרבי נחמן'}
+          onClick={() => setQuoteOpen(q => !q)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setQuoteOpen(q => !q); } }}
+          style={{ background:'rgba(0,0,0,0.18)', borderTop:'1px solid rgba(255,255,255,0.08)', padding:'0.5rem 1.2rem', cursor:'pointer' }}>
           <div style={{ maxWidth:1080, margin:'0 auto', display:'flex', alignItems:'flex-start', gap:'0.8rem', justifyContent:'space-between' }}>
             <div style={{ fontFamily:"'Frank Ruhl Libre',serif", color:'#c8d8ff', fontSize:'1rem', lineHeight:1.8, flex:1, overflow:'hidden' }}>
               {quoteOpen
@@ -1256,10 +1446,10 @@ function App() {
 
         {/* Tabs */}
         <div style={{ display:'flex', maxWidth:1080, margin:'0 auto', padding:'0 1.2rem', borderBottom:'1px solid rgba(255,255,255,0.08)', alignItems:'center', justifyContent:'space-between' }}>
-          <div style={{ display:'flex' }}>
+          <div role="tablist" aria-label="מסכים" style={{ display:'flex' }}>
           {[['shas','מעקב למידה','book'],['journal','יומן','pen'],['target','יעד','target']].map(([key, label, ic]) => (
-            <button key={key} className="tab-btn" onClick={() => setTab(key)}
-              style={{ color: tab===key ? '#b8ceff' : '#8499cf', borderBottomColor: tab===key ? '#b8ceff' : 'transparent', fontWeight: tab===key ? 700 : 400, display:'inline-flex', alignItems:'center', gap:'0.4rem' }}>
+            <button key={key} className="tab-btn" role="tab" aria-selected={tab === key} aria-label={label} onClick={() => setTab(key)}
+              style={{ color: tab===key ? '#b8ceff' : '#b3c2ea', borderBottomColor: tab===key ? '#b8ceff' : 'transparent', fontWeight: tab===key ? 700 : 400, display:'inline-flex', alignItems:'center', gap:'0.4rem' }}>
               <Ic d={ICONS[ic]} /><span className="tab-label">{label}</span>
             </button>
           ))}
@@ -1267,16 +1457,19 @@ function App() {
           <div className="top-actions" style={{ display:'flex', alignItems:'center', gap:'0.5rem' }}>
             {!isOnline && <span style={{ fontSize:'0.65rem', background:'#8b2020', color:'#fff', borderRadius:4, padding:'0.15rem 0.4rem', fontWeight:600 }}>אופליין</span>}
             {user.photoURL && <img src={user.photoURL} alt="" referrerPolicy="no-referrer" style={{ width:22, height:22, borderRadius:'50%', border:'1.5px solid #4a67c8' }} />}
-            <span style={{ fontSize:'0.7rem', color:'#7a90cc' }}>{user.displayName?.split(' ')[0]}</span>
-            <button onClick={syncToCloud} title="גיבוי ענן" style={{ background: backupMsg?.ok ? '#1a7a50' : backupMsg?.ok === false ? '#8b2020' : 'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:6, color: backupMsg ? '#fff' : '#7a90cc', fontSize:'0.62rem', padding:'0.18rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif", fontWeight:600, transition:'all 0.2s' }}>{backupMsg ? backupMsg.text : '☁ גיבוי'}</button>
-            <button onClick={signOutUser} style={{ background:'none', border:'1px solid rgba(255,255,255,0.15)', borderRadius:6, color:'#7a90cc', fontSize:'0.65rem', padding:'0.2rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>יציאה</button>
+            <span style={{ fontSize:'0.7rem', color:'#b3c2ea' }}>{user.displayName?.split(' ')[0]}</span>
+            <button onClick={syncToCloud} title="גיבוי ענן" aria-label="גיבוי לענן" aria-live="polite" style={{ background: backupMsg?.ok ? '#1a7a50' : backupMsg?.ok === false ? '#8b2020' : 'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:6, color: backupMsg ? '#fff' : '#b3c2ea', fontSize:'0.62rem', padding:'0.18rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif", fontWeight:600, transition:'all 0.2s' }}>{backupMsg ? backupMsg.text : '☁ גיבוי'}</button>
+            <button onClick={signOutUser} style={{ background:'none', border:'1px solid rgba(255,255,255,0.15)', borderRadius:6, color:'#b3c2ea', fontSize:'0.65rem', padding:'0.2rem 0.5rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>יציאה</button>
           </div>
         </div>
       </div>
 
       {offlineView && (
-        <div style={{ background:'#fef3c7', borderBottom:'1px solid #f59e0b', color:'#92400e', fontSize:'0.82rem', textAlign:'center', padding:'0.55rem 1rem', fontWeight:600 }}>
-          ⚠️ מצב לא־מקוון — צפייה בלבד. שינויים לא יישמרו עד שתחזור הרשת · <span onClick={() => window.location.reload()} style={{ textDecoration:'underline', cursor:'pointer' }}>נסה שוב</span>
+        <div role="alert" style={{ background:'#fef3c7', borderBottom:'1px solid #f59e0b', color:'#7c2d12', fontSize:'0.82rem', textAlign:'center', padding:'0.55rem 1rem', fontWeight:600 }}>
+          {offlineView === 'denied' ? '⚠️ אין הרשאה לקרוא את הנתונים מהשרת (כללי האבטחה ב-Firebase). '
+            : offlineView === 'nocache' ? '⚠️ לא הצלחנו לטעון את הנתונים מהענן, ואין עותק שמור במכשיר הזה. בדוק חיבור לאינטרנט (או VPN/סינון שחוסם את firestore.googleapis.com). '
+            : '⚠️ אין חיבור לשרת — מוצג העותק השמור במכשיר, לצפייה בלבד. '}
+          <button onClick={() => window.location.reload()} style={{ background:'none', border:'none', color:'inherit', font:'inherit', textDecoration:'underline', cursor:'pointer', padding:0 }}>נסה שוב</button>
         </div>
       )}
 
@@ -1286,17 +1479,27 @@ function App() {
         {tab === 'shas' && <>
           <div style={{ background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:12, padding:'0.8rem 1.2rem', marginBottom:'1.2rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'0.5rem', boxShadow:'0 1px 6px rgba(30,45,90,0.06)' }}>
             {targetObj2 ? (<>
-              <div style={{ fontSize:'0.86rem', color:'#3a4f7a' }}><span style={{ color:'#2a40a0', marginLeft:'0.3rem', verticalAlign:'middle', display:'inline-flex' }}><Ic d={ICONS.target} size={14} /></span>יעד: {targetObj2.age !== '?' && <>סיום עד גיל <span style={{ color:'#2a40a0', fontWeight:700 }}>{targetObj2.age}</span> · </>}<span style={{ color:'#5a70aa' }}>{fmtHebDate(targetObj2)}</span> · <span style={{ color:'#2a40a0', fontWeight:700 }}>{remaining.toLocaleString()}</span> עמודים נותרו</div>
-              <div style={{ fontSize:'0.82rem', color:'#3a4f7a' }}>קצב נדרש: <span style={{ color:'#1a7a50', fontWeight:700 }}>{dafsPerWeek} דפים / {amudimPerWeek} עמודים בשבוע</span></div>
+              <div style={{ fontSize:'0.86rem', color:'#3a4f7a' }}><span style={{ color:'#2a40a0', marginLeft:'0.3rem', verticalAlign:'middle', display:'inline-flex' }}><Ic d={ICONS.target} size={14} /></span>יעד: {targetObj2.age !== '?' && <>סיום עד גיל <span style={{ color:'#2a40a0', fontWeight:700 }}>{targetObj2.age}</span> · </>}<span style={{ color:'#4a5f98' }}>{fmtHebDate(targetObj2)}</span> · <span style={{ color:'#2a40a0', fontWeight:700 }}>{remaining.toLocaleString()}</span> עמודים נותרו</div>
+              {targetPast
+                ? <div style={{ fontSize:'0.82rem', color:'#8b2020', fontWeight:600 }}>תאריך היעד כבר עבר — <button onClick={() => setTab('target')} style={{ background:'none', border:'none', color:'#2a40a0', font:'inherit', fontWeight:700, cursor:'pointer', padding:0, textDecoration:'underline' }}>עדכן יעד</button></div>
+                : <div style={{ fontSize:'0.82rem', color:'#3a4f7a' }}>קצב נדרש: <span style={{ color:'#1a7a50', fontWeight:700 }}>{dafsPerWeek} דפים / {amudimPerWeek} עמודים בשבוע</span></div>}
             </>) : (
-              <div style={{ fontSize:'0.86rem', color:'#7a8aaa', fontStyle:'italic' }}>אז מה היעד שלך? <span style={{ color:'#4a67c8', cursor:'pointer', fontStyle:'normal', fontWeight:600 }} onClick={() => setTab('target')}>הגדר עכשיו ←</span></div>
+              <div style={{ fontSize:'0.86rem', color:'#5f6e8e', fontStyle:'italic' }}>אז מה היעד שלך? <button onClick={() => setTab('target')} style={{ background:'none', border:'none', color:'#2a40a0', cursor:'pointer', fontStyle:'normal', fontWeight:600, font:'inherit', padding:0 }}>הגדר עכשיו ←</button></div>
             )}
-            {(() => { const dy = getTodayDafYomi(); if (!dy) return null; const tl = TRACTATE_LINKS[dy.tractate]; const lnk = tl ? 'https://www.sefaria.org.il/Steinsaltz_on_' + tl.sefaria + (tl.noDaf ? '' : '.' + dy.daf + 'a') + '?lang=he' : (DY_EXTRA[dy.tractate] || null); return lnk ? <a href={lnk} target="_blank" rel="noopener noreferrer" style={{ fontSize:'0.76rem', color:'#b45309', fontWeight:600, background:'#fffbef', border:'1px solid #f59e0b', borderRadius:6, padding:'0.16rem 0.55rem', whiteSpace:'nowrap', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'0.3rem' }}><Ic d={ICONS.cal} size={13} /> דף יומי: {dy.tractate} {HEB[dy.daf]} ↗</a> : null; })()}
+            {(() => {
+              const dy = getTodayDafYomi(); if (!dy) return null;
+              const tl = TRACTATE_LINKS[dy.tractate];
+              const chip = { fontSize:'0.76rem', color:'#9a4a08', fontWeight:600, background:'#fffbef', border:'1px solid #f59e0b', borderRadius:6, padding:'0.2rem 0.55rem', whiteSpace:'nowrap', textDecoration:'none', display:'inline-flex', alignItems:'center', gap:'0.3rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" };
+              // דף יומי בבבלי — נפתח במסך העיון; קינים/מידות/שקלים — בספריא
+              if (tl && !tl.noDaf && READER_TRACTATES[dy.tractate]) return <button onClick={() => openReader(dy.tractate, dy.daf + 'a:1')} aria-label={'דף יומי: ' + dy.tractate + ' ' + hebNum(dy.daf) + ' — פתח במסך העיון'} style={chip}><Ic d={ICONS.cal} size={13} /> דף יומי: {dy.tractate} {HEB[dy.daf]} · 📖 עיון</button>;
+              const lnk = tl ? 'https://www.sefaria.org.il/Steinsaltz_on_' + tl.sefaria + '?lang=he' : (DY_EXTRA[dy.tractate] || null);
+              return lnk ? <a href={lnk} target="_blank" rel="noopener noreferrer" style={chip}><Ic d={ICONS.cal} size={13} /> דף יומי: {dy.tractate} {HEB[dy.daf]} ↗</a> : null;
+            })()}
           </div>
 
           <div style={{ position:'relative', marginBottom:'1.2rem' }}>
             <span style={{ position:'absolute', right:'0.9rem', top:'50%', transform:'translateY(-50%)', color:'#9aa8c8', display:'flex' }}><Ic d={ICONS.search} size={16} /></span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חפש מסכת..."
+            <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="חפש מסכת..." aria-label="חיפוש מסכת"
               style={{ width:'100%', background:'#fff', border:'1px solid #e2e8f4', borderRadius:10, padding:'0.65rem 2.5rem 0.65rem 1rem', color:'#1a2340', fontFamily:"'Heebo',sans-serif", fontSize:'0.92rem', direction:'rtl', boxShadow:'0 1px 4px rgba(30,45,90,0.05)' }}
             />
           </div>
@@ -1304,35 +1507,35 @@ function App() {
           {SHAS.map(sed => {
             const filtered = sed.tractates.filter(t => !search.trim() || normHeb(t.name).includes(normHeb(search)));
             if (!filtered.length) return null;
-            const sL = filtered.reduce((s,t) => s + countT(t.name, t.dafim), 0);
-            const sT = filtered.reduce((s,t) => s + t.dafim*2, 0);
+            const sL = filtered.reduce((s,t) => s + countT(t.name), 0);
+            const sT = filtered.reduce((s,t) => s + amudCount(t), 0);
             return (
               <div key={sed.seder} style={{ marginBottom:'2rem' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'0.8rem', marginBottom:'0.9rem', paddingBottom:'0.45rem', borderBottom:'2px solid #d8e0f0' }}>
                   <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'0.95rem', fontWeight:700, color:'#2e4080' }}>{sed.seder}</span>
-                  <span style={{ fontSize:'0.68rem', color:'#7a8aaa', background:'#eef1ff', padding:'0.1rem 0.5rem', borderRadius:20 }}>{sL}/{sT}</span>
+                  <span style={{ fontSize:'0.68rem', color:'#5f6e8e', background:'#eef1ff', padding:'0.1rem 0.5rem', borderRadius:20 }}>{sL}/{sT}</span>
                 </div>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:'0.8rem' }}>
                   {filtered.map(t => {
-                    const cnt = countT(t.name, t.dafim);
-                    const totalAm = t.dafim * 2;
+                    const cnt = countT(t.name);
+                    const totalAm = amudCount(t);
                     const tPct = Math.round((cnt / totalAm) * 100);
                     const isComplete = cnt === totalAm;
                     const isOpen = openCards[t.name];
-                    const hasHard = Object.keys(hard).some(k => k.startsWith(t.name + '||'));
+                    const hasHard = hardTractates.has(t.name);
                     return (
                       <div key={t.name} style={{ background: isComplete ? '#fffdf5' : '#fff', border:'1px solid ' + (isOpen ? '#c8d4f2' : '#e8edf7'), borderRight: isComplete ? '3px solid #d4af37' : undefined, borderRadius:12, overflow:'hidden', boxShadow: isOpen ? '0 8px 28px rgba(40,60,130,0.13)' : '0 1px 4px rgba(30,45,90,0.05)', gridColumn: isOpen ? '1 / -1' : undefined, transition:'box-shadow 0.2s' }}>
-                        <div className="thdr" role="button" tabIndex={0} aria-expanded={!!isOpen} aria-label={t.name + ' — ' + cnt + ' מתוך ' + totalAm + ' עמודים. ' + (isOpen ? 'סגור' : 'פתח')}
-                          onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); const closing = openCards[t.name]; setOpenCards(o => ({...o, [t.name]: !o[t.name]})); setSinaiOpenedCard(o => ({...o, [t.name]: false})); if (closing) setSinaiOpen(o => ({...o, [t.name]: false})); } }}
+                        {/* הכותרת כולה לחיצה בעכבר; למקלדת/קורא מסך — כפתור שם המסכת (בלי כפתורים מקוננים) */}
+                        <div className="thdr"
                           onClick={() => { const closing = openCards[t.name]; setOpenCards(o => ({...o, [t.name]: !o[t.name]})); setSinaiOpenedCard(o => ({...o, [t.name]: false})); if (closing) setSinaiOpen(o => ({...o, [t.name]: false})); }}
                           style={{ padding:'0.8rem 1rem 0.65rem', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', userSelect:'none' }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:'0.3rem' }}>
+                          <button className="thdr-btn" aria-expanded={!!isOpen} aria-label={t.name + ' — ' + cnt + ' מתוך ' + totalAm + ' עמודים' + (hasHard ? ', יש דפים קשים' : '') + '. ' + (isOpen ? 'סגור' : 'פתח')}>
                             <span style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.05rem', fontWeight:700, color: isComplete ? '#8a6000' : '#1a2340' }}>{t.name}</span>
-                            {hasHard && <span style={{ color:'#d4af37', display:'inline-flex' }} title="יש דפים קשים"><Ic d={ICONS.star} size={11} /></span>}
-                          </div>
+                            {hasHard && <span style={{ color:'#b8901a', display:'inline-flex' }} title="יש דפים קשים"><Ic d={ICONS.star} size={11} /></span>}
+                          </button>
                           <div style={{ display:'flex', alignItems:'center', gap:'0.35rem', flexWrap:'wrap', justifyContent:'flex-end' }}>
                             {READER_TRACTATES[t.name] && (() => { const bm = readerMarks[t.name]; const at = bm && (bm.stop || bm.last); return (
-                              <button onClick={e => { e.stopPropagation(); setReaderOpen(t.name); }} title={'עיון במסכת ' + t.name + ' עם ביאור שטיינזלץ'}
+                              <button onClick={e => { e.stopPropagation(); openReader(t.name); }} title={'עיון במסכת ' + t.name + ' עם ביאור שטיינזלץ'}
                                 style={{ fontSize:'0.72rem', color:'#fff', background:'#2a40a0', border:'none', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                                 📖 {at ? 'המשך · ' + unitLabel(t.name, at.split(':')[0]).replace('דף ', '') : 'עיון'}
                               </button>); })()}
@@ -1360,13 +1563,13 @@ function App() {
                                   }
                                 }}
                                   title="שיעורים להאזנה — מכון סיני"
-                                  style={{ fontSize:'0.72rem', color: sinaiOpen[t.name] ? '#fff' : '#b45309', background: sinaiOpen[t.name] ? '#b45309' : '#fdf1d4', border:'none', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:'0.28rem' }}>
+                                  style={{ fontSize:'0.72rem', color: sinaiOpen[t.name] ? '#fff' : '#9a4a08', background: sinaiOpen[t.name] ? '#9a4a08' : '#fdf1d4', border:'none', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:'0.28rem' }}>
                                   <Ic d={ICONS.headph} size={12} /> שיעור · סיני {sinaiOpen[t.name] ? '▲' : '▼'}
                                 </button>
                               )}
                             </>)}
-                            <span style={{ fontSize:'0.72rem', color:'#7a8aaa' }}>{cnt}/{totalAm}</span>
-                            <span style={{ fontSize:'0.58rem', color:'#7a8aaa', display:'inline-block', transition:'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
+                            <span aria-hidden="true" style={{ fontSize:'0.72rem', color:'#5f6e8e' }}>{cnt}/{totalAm}</span>
+                            <span aria-hidden="true" style={{ fontSize:'0.58rem', color:'#5f6e8e', display:'inline-block', transition:'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>▼</span>
                           </div>
                         </div>
                         <div style={{ height:4, background:'#eef1f8' }}>
@@ -1379,12 +1582,12 @@ function App() {
                           const rFromDaf  = rs.fromDaf  ?? firstDaf(t);
                           const rFromAmud = rs.fromAmud ?? 'א';
                           const rToDaf    = rs.toDaf    ?? (firstDaf(t) + t.dafim - 1);
-                          const rToAmud   = rs.toAmud   ?? 'ב';
+                          const rToAmud   = rs.toAmud   ?? (t.endA ? 'א' : 'ב');
                           const dafOptions = dafList(t);
-                          const amudToggle = (field, val) => (
-                            <div style={{ display:'flex', border:'1px solid #c0ccf0', borderRadius:5, overflow:'hidden' }}>
+                          const amudToggle = (field, val, what) => (
+                            <div role="group" aria-label={what} style={{ display:'flex', border:'1px solid #c0ccf0', borderRadius:5, overflow:'hidden' }}>
                               {['א','ב'].map(a => (
-                                <button key={a} onClick={e => { e.stopPropagation(); updateRange(t.name, { [field]: a }); }}
+                                <button key={a} aria-pressed={val === a} aria-label={'עמוד ' + a} onClick={e => { e.stopPropagation(); updateRange(t.name, { [field]: a }); }}
                                   style={{ padding:'0.18rem 0.42rem', fontSize:'0.72rem', fontFamily:"'Frank Ruhl Libre',serif", border:'none', cursor:'pointer', background: val === a ? '#4a67c8' : '#eef1ff', color: val === a ? '#fff' : '#2e4080', fontWeight: val === a ? 700 : 400 }}>
                                   {a}
                                 </button>
@@ -1395,14 +1598,14 @@ function App() {
                           <div style={{ padding:'0.8rem', background:'#f7f9ff', borderTop:'1px solid #eef1f8' }}>
                             {TRACTATE_LINKS[t.name] && (
                               <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', flexWrap:'wrap', marginBottom:'0.7rem' }}>
-                                <span style={{ fontSize:'0.66rem', color:'#7a8aaa', fontWeight:600 }}>עוד מקורות:</span>
+                                <span style={{ fontSize:'0.66rem', color:'#5f6e8e', fontWeight:600 }}>עוד מקורות:</span>
                                 <a href={'https://he.wikisource.org/wiki/' + TRACTATE_LINKS[t.name].ws} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.7rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.2rem 0.6rem', fontWeight:600 }}>טקסט מלא</a>
                                 {SLIDES[t.name] && <a href={SLIDES[t.name]} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.7rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.2rem 0.6rem', fontWeight:600 }}>מצגות</a>}
                               </div>
                             )}
                             {sinaiOpen[t.name] && TRACTATE_LINKS[t.name]?.sinaiMapId && (
                               <div style={{ background:'#fffbef', border:'1.5px solid #f59e0b', borderRadius:9, padding:'0.65rem 0.9rem', marginBottom:'0.8rem' }}>
-                                <div style={{ fontSize:'0.72rem', fontWeight:700, color:'#b45309', marginBottom:'0.5rem', fontFamily:"'Heebo',sans-serif" }}>שיעורים בסיני — {t.name}</div>
+                                <div style={{ fontSize:'0.72rem', fontWeight:700, color:'#9a4a08', marginBottom:'0.5rem', fontFamily:"'Heebo',sans-serif" }}>שיעורים בסיני — {t.name}</div>
                                 <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
                                   {dafList(t).map(daf => (
                                     <a key={daf} href={'https://map.sinai.org.il/daf/' + TRACTATE_LINKS[t.name].sinaiMapId + '/' + daf}
@@ -1415,59 +1618,59 @@ function App() {
                               </div>
                             )}
                             <div style={{ display:'flex', gap:'0.5rem', marginBottom:'0.7rem', alignItems:'center', flexWrap:'wrap' }}>
-                              <button className="mbtn" style={{ background:'#e7edfb', color:'#2e4080' }} onClick={e => { e.stopPropagation(); markAll(t.name, t.dafim); }}>✓ סמן הכל</button>
-                              {cnt > 0 && <button className="mbtn" style={{ background:'#fdecec', color:'#8b2020' }} onClick={e => { e.stopPropagation(); unmarkAll(t.name, t.dafim); }}>✕ נקה הכל</button>}
+                              <button className="mbtn" style={{ background:'#e7edfb', color:'#2e4080' }} onClick={e => { e.stopPropagation(); markAll(t.name); }}>✓ סמן הכל</button>
+                              {cnt > 0 && <button className="mbtn" style={{ background:'#fdecec', color:'#8b2020' }} onClick={e => { e.stopPropagation(); unmarkAll(t.name); }}>✕ נקה הכל</button>}
                               <button className="mbtn" style={{ background: showRange ? '#2e4080' : '#e7edfb', color: showRange ? '#fff' : '#2e4080' }}
-                                onClick={e => { e.stopPropagation(); updateRange(t.name, { showRange: !showRange }); }}>
+                                aria-expanded={showRange} onClick={e => { e.stopPropagation(); updateRange(t.name, { showRange: !showRange }); }}>
                                 <Ic d={ICONS.range} size={12} /> סמן טווח {showRange ? '▲' : '▼'}
                               </button>
                               {cnt > 0 && <button className="mbtn" style={{ background: reviewsMode[t.name] ? '#7c3aed' : '#f1edfd', color: reviewsMode[t.name] ? '#fff' : '#5b21b6' }}
                                 onClick={e => { e.stopPropagation(); setReviewsMode(m => ({...m, [t.name]: !m[t.name]})); if (!reviewsMode[t.name]) setHardMode(m => ({...m, [t.name]: false})); }}>
                                 <Ic d={ICONS.refresh} size={12} /> חזרות {reviewsMode[t.name] ? '▲' : '▼'}
                               </button>}
-                              {cnt > 0 && <button className="mbtn" style={{ background: hardMode[t.name] ? '#dc2626' : '#fdeaea', color: hardMode[t.name] ? '#fff' : '#dc2626' }}
+                              {cnt > 0 && <button className="mbtn" style={{ background: hardMode[t.name] ? '#dc2626' : '#fdeaea', color: hardMode[t.name] ? '#fff' : '#b91c1c' }}
                                 onClick={e => { e.stopPropagation(); setHardMode(m => ({...m, [t.name]: !m[t.name]})); if (!hardMode[t.name]) setReviewsMode(m => ({...m, [t.name]: false})); }}>
                                 <Ic d={ICONS.star} size={12} /> קשה {hardMode[t.name] ? '▲' : '▼'}
                               </button>}
-                              <span style={{ fontSize:'0.68rem', color:'#7a8aaa', marginRight:'auto' }}>{tPct}%  ·  {t.dafim} דפים</span>
+                              <span style={{ fontSize:'0.68rem', color:'#5f6e8e', marginRight:'auto' }}>{tPct}%  ·  {t.dafim} דפים</span>
                             </div>
                             {showRange && (
                               <div style={{ background:'#fff', border:'1.5px solid #c0ccf0', borderRadius:9, padding:'0.65rem 0.9rem', marginBottom:'0.7rem', display:'flex', flexWrap:'wrap', gap:'0.5rem', alignItems:'center' }}>
                                 <span style={{ fontSize:'0.75rem', color:'#3a4f7a', fontWeight:600 }}>מדף</span>
-                                <select value={rFromDaf} onClick={e => e.stopPropagation()} onChange={e => { e.stopPropagation(); updateRange(t.name, { fromDaf: Number(e.target.value) }); }}
+                                <select aria-label="מדף" value={rFromDaf} onClick={e => e.stopPropagation()} onChange={e => { e.stopPropagation(); updateRange(t.name, { fromDaf: Number(e.target.value) }); }}
                                   style={{ border:'1px solid #c0ccf0', borderRadius:5, padding:'0.2rem 0.3rem', fontFamily:"'Frank Ruhl Libre',serif", fontSize:'0.82rem', color:'#1a2340', background:'#f7f9ff' }}>
                                   {dafOptions.map(d => <option key={d} value={d}>{HEB[d]}</option>)}
                                 </select>
-                                {amudToggle('fromAmud', rFromAmud)}
+                                {amudToggle('fromAmud', rFromAmud, 'עמוד התחלה')}
                                 <span style={{ fontSize:'0.75rem', color:'#3a4f7a', fontWeight:600 }}>עד דף</span>
-                                <select value={rToDaf} onClick={e => e.stopPropagation()} onChange={e => { e.stopPropagation(); updateRange(t.name, { toDaf: Number(e.target.value) }); }}
+                                <select aria-label="עד דף" value={rToDaf} onClick={e => e.stopPropagation()} onChange={e => { e.stopPropagation(); updateRange(t.name, { toDaf: Number(e.target.value) }); }}
                                   style={{ border:'1px solid #c0ccf0', borderRadius:5, padding:'0.2rem 0.3rem', fontFamily:"'Frank Ruhl Libre',serif", fontSize:'0.82rem', color:'#1a2340', background:'#f7f9ff' }}>
                                   {dafOptions.map(d => <option key={d} value={d}>{HEB[d]}</option>)}
                                 </select>
-                                {amudToggle('toAmud', rToAmud)}
-                                <button onClick={e => { e.stopPropagation(); markRange(t.name, t.dafim, rFromDaf, rFromAmud, rToDaf, rToAmud); updateRange(t.name, { showRange: false }); }}
+                                {amudToggle('toAmud', rToAmud, 'עמוד סיום')}
+                                <button onClick={e => { e.stopPropagation(); if (markRange(t.name, rFromDaf, rFromAmud, rToDaf, rToAmud)) updateRange(t.name, { showRange: false }); }}
                                   style={{ background:'#2a40a0', color:'#fff', border:'none', borderRadius:6, padding:'0.28rem 0.85rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'0.75rem', cursor:'pointer' }}>
                                   ✓ סמן
                                 </button>
                               </div>
                             )}
-                            {isDY_tractate && <div style={{ fontSize:'0.7rem', color:'#b45309', fontWeight:600, marginBottom:'0.4rem', display:'flex', alignItems:'center', gap:'0.3rem' }}><Ic d={ICONS.cal} size={12} /> הדף היומי: {HEB[getTodayDafYomi().daf]} — מסומן בצהוב</div>}
+                            {isDY_tractate && <div style={{ fontSize:'0.7rem', color:'#9a4a08', fontWeight:600, marginBottom:'0.4rem', display:'flex', alignItems:'center', gap:'0.3rem' }}><Ic d={ICONS.cal} size={12} /> הדף היומי: {HEB[getTodayDafYomi().daf]} — מסומן בצהוב</div>}
                             <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
                               {dafList(t).map(daf =>
-                                ['א','ב'].map(amud => {
+                                ['א','ב'].filter(amud => hasAmud(t, daf, amud)).map(amud => {
                                   const k = amudKey(t.name, daf, amud);
                                   const isL = !!learned[k];
                                   const dy = getTodayDafYomi();
                                   const isDY = dy && dy.tractate === t.name && dy.daf === daf;
                                   const act = () => hardMode[t.name] ? toggleHard(t.name, daf, amud) : reviewsMode[t.name] ? toggleReview(t.name, daf, amud) : toggleAmud(t.name, daf, amud);
                                   const mode = hardMode[t.name] ? 'סימון קושי' : reviewsMode[t.name] ? 'סימון חזרה' : (isL ? 'בטל סימון' : 'סמן כנלמד');
-                                  const label = t.name + ' דף ' + HEB[daf] + ' עמוד ' + amud + ' — ' + (isL ? 'נלמד' : 'לא נלמד') + '. ' + mode;
+                                  const label = t.name + ' דף ' + HEB[daf] + ' עמוד ' + amud + ' — ' + (isL ? 'נלמד' : 'לא נלמד') + (isL && reviews[k] ? ', ' + reviews[k] + ' חזרות' : '') + (isL && hard[k] ? ', קשה' : '') + (isDY ? ', הדף היומי' : '') + '. ' + mode;
                                   return (
                                     <div key={k} role="button" tabIndex={0} aria-label={label} aria-pressed={isL}
                                       className={'amud-cell' + (isL ? ' learned' : '') + (flash === k ? ' flash' : '') + (reviewsMode[t.name] && isL && !hardMode[t.name] ? ' review-mode' : '') + (hardMode[t.name] && isL ? ' hard-mode' : '') + (isDY ? ' daf-yomi' : '')}
                                       onClick={act}
                                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } }}>
-                                      {isL && reviews[k] > 0 && <span style={{ position:'absolute', top:2, left:2, background:'#e8c040', color:'#1a2340', fontSize:'0.48rem', fontWeight:900, width:13, height:13, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none', lineHeight:1, fontFamily:'sans-serif' }}>{reviews[k]}</span>}
+                                      {isL && reviews[k] > 0 && <span aria-hidden="true" style={{ position:'absolute', top:2, left:2, background:'#e8c040', color:'#1a2340', fontSize:'0.48rem', fontWeight:900, width:13, height:13, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none', lineHeight:1, fontFamily:'sans-serif' }}>{reviews[k]}</span>}
                                       {isL && hard[k] && <div style={{ position:'absolute', bottom:0, left:0, right:0, height:3, background:'#ef4444', borderRadius:'0 0 5px 5px', pointerEvents:'none' }} />}
                                       <span className="daf-num">{HEB[daf]}</span>
                                       <span className="amud-letter">{amud}</span>
@@ -1490,89 +1693,91 @@ function App() {
 
         {tab === 'target' && (() => {
           const targetObj = targetDate ? (() => { try { return JSON.parse(targetDate); } catch(e) { return null; } })() : null;
-          const birthDateObj = (birthInput && birthInput.split('-').filter(Boolean).length === 3) ? parseLocalDate(birthInput) : null;
-          const bdayResult = (birthDateObj && ageInput) ? hebrewBirthdayAtAge(birthDateObj, ageInput) : null;
-          const computedDate = bdayResult ? bdayResult.gregorian : null;
-          const hebrewDate = bdayResult ? bdayResult.hebrew : null;
+          const [bY, bM, bD] = birthInput.split('-');
+          const daysInMonth = new Date(+bY || 2000, +bM || 1, 0).getDate();
+          // מעדכן חלק אחד בתאריך הלידה; יום שלא קיים בחודש (31 בפברואר) מתקצר לסוף החודש
+          const setBirthPart = (i, v) => {
+            const parts = [bY || '', bM || '', bD || ''];
+            parts[i] = v;
+            if (parts[0] && parts[1] && parts[2]) parts[2] = String(Math.min(+parts[2], new Date(+parts[0], +parts[1], 0).getDate())).padStart(2, '0');
+            setBirthInput(parts.join('-'));
+          };
+          const birthOk = !!(bY && bM && bD);
+          const birthDateObj = birthOk ? parseLocalDate(birthInput) : null;
+          const ageNum = Number(ageInput);
+          const nowAge = birthDateObj ? (Date.now() - birthDateObj) / (365.2425 * 864e5) : null;
+          const bdayResult = (birthDateObj && ageInput && Number.isInteger(ageNum)) ? hebrewBirthdayAtAge(birthDateObj, ageNum) : null;
+          const ageError = !ageInput ? null
+            : !Number.isInteger(ageNum) || ageNum < 1 ? 'יש להזין גיל במספר שלם'
+            : ageNum > 120 ? 'גיל היעד צריך להיות עד 120'
+            : nowAge != null && ageNum <= nowAge ? 'הגיל הזה כבר עבר — בחר גיל גדול יותר'
+            : null;
+          const canSave = birthOk && ageInput && !ageError;
+          const sel = { border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.6rem 0.4rem', fontFamily:"'Heebo',sans-serif", fontSize:'0.95rem', color:'#1a2340', background:'#fff' };
           return (
           <div style={{ maxWidth:500, margin:'0 auto' }}>
             <div style={{ background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:16, padding:'2rem', boxShadow:'0 2px 12px rgba(30,45,90,0.08)', textAlign:'center' }}>
               <div style={{ marginBottom:'0.8rem', color:'#2a40a0', display:'flex', justifyContent:'center' }}><Ic d={ICONS.target} size={42} /></div>
-              <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:700, color:'#2e4080', marginBottom:'0.3rem' }}>
+              <h2 style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:700, color:'#2e4080', marginBottom:'0.3rem' }}>
                 באיזה גיל היית רוצה לסיים את הש״ס?
-              </div>
-              <div style={{ fontSize:'0.82rem', color:'#7a8aaa', marginBottom:'1.8rem' }}>
+              </h2>
+              <div style={{ fontSize:'0.82rem', color:'#5f6e8e', marginBottom:'1.8rem' }}>
                 {targetObj ? 'תמיד אפשר לעדכן' : 'נחשב יחד את הקצב הנדרש'}
               </div>
               {targetObj && (
                 <div style={{ background:'#eef1ff', border:'1.5px solid #c0ccf0', borderRadius:12, padding:'1rem', marginBottom:'1.5rem' }}>
-                  <div style={{ fontSize:'0.75rem', color:'#5a70aa', marginBottom:'0.3rem' }}>היעד שלך</div>
+                  <div style={{ fontSize:'0.75rem', color:'#4a5f98', marginBottom:'0.3rem' }}>היעד שלך</div>
                   <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.3rem', fontWeight:700, color:'#2a40a0' }}>
                     סיום עד גיל {targetObj.age}
                   </div>
-                  <div style={{ fontSize:'0.82rem', color:'#5a70aa', marginTop:'0.2rem' }}>
+                  <div style={{ fontSize:'0.82rem', color:'#4a5f98', marginTop:'0.2rem' }}>
                     {fmtHebDate(targetObj)}
                   </div>
                 </div>
               )}
               <div style={{ display:'flex', flexDirection:'column', gap:'1rem', marginBottom:'1.2rem', textAlign:'right' }}>
                 <div>
-                  <div style={{ fontSize:'0.8rem', color:'#5a70aa', marginBottom:'0.3rem', fontWeight:600 }}>גיל יעד לסיום</div>
-                  <input type="number" min="20" max="120" value={ageInput} onChange={e => setAgeInput(e.target.value)}
-                    placeholder="למשל: 50"
-                    style={{ width:'100%', border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.65rem 0.9rem', fontFamily:"'Heebo',sans-serif", fontSize:'1rem', color:'#1a2340', textAlign:'center', boxSizing:'border-box' }}
+                  <label htmlFor="target-age" style={{ display:'block', fontSize:'0.8rem', color:'#4a5f98', marginBottom:'0.3rem', fontWeight:600 }}>גיל יעד לסיום</label>
+                  <input id="target-age" type="number" inputMode="numeric" min="1" max="120" step="1" value={ageInput} onChange={e => setAgeInput(e.target.value)}
+                    placeholder="למשל: 50" aria-invalid={!!ageError} aria-describedby={ageError ? 'target-age-err' : undefined}
+                    style={{ width:'100%', border:'1.5px solid ' + (ageError ? '#dc2626' : '#d8e0f0'), borderRadius:8, padding:'0.65rem 0.9rem', fontFamily:"'Heebo',sans-serif", fontSize:'1rem', color:'#1a2340', textAlign:'center', boxSizing:'border-box' }}
                   />
+                  {ageError && <div id="target-age-err" style={{ fontSize:'0.78rem', color:'#b91c1c', marginTop:'0.3rem', fontWeight:600 }}>{ageError}</div>}
                 </div>
-                <div>
-                  <div style={{ fontSize:'0.8rem', color:'#5a70aa', marginBottom:'0.3rem', fontWeight:600 }}>תאריך לידה</div>
+                <fieldset style={{ border:'none', padding:0, margin:0 }}>
+                  <legend style={{ fontSize:'0.8rem', color:'#4a5f98', marginBottom:'0.3rem', fontWeight:600 }}>תאריך לידה (לועזי)</legend>
                   <div style={{ display:'flex', gap:'0.5rem', direction:'rtl' }}>
-                    <select value={birthInput.split('-')[2] || ''} onChange={e => {
-                      const parts = birthInput.split('-');
-                      setBirthInput((parts[0]||'2000') + '-' + (parts[1]||'01') + '-' + e.target.value.padStart(2,'0'));
-                    }} style={{ flex:1, border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.6rem 0.4rem', fontFamily:"'Heebo',sans-serif", fontSize:'0.95rem', color:'#1a2340' }}>
+                    <select aria-label="יום לידה" value={bD || ''} onChange={e => setBirthPart(2, e.target.value)} style={{ ...sel, flex:1 }}>
                       <option value="">יום</option>
-                      {Array.from({length:31},(_,i)=>i+1).map(d => <option key={d} value={String(d).padStart(2,'0')}>{d}</option>)}
+                      {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => <option key={d} value={String(d).padStart(2,'0')}>{d}</option>)}
                     </select>
-                    <select value={birthInput.split('-')[1] || ''} onChange={e => {
-                      const parts = birthInput.split('-');
-                      setBirthInput((parts[0]||'2000') + '-' + e.target.value + '-' + (parts[2]||'01'));
-                    }} style={{ flex:2, border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.6rem 0.4rem', fontFamily:"'Heebo',sans-serif", fontSize:'0.95rem', color:'#1a2340' }}>
+                    <select aria-label="חודש לידה" value={bM || ''} onChange={e => setBirthPart(1, e.target.value)} style={{ ...sel, flex:2 }}>
                       <option value="">חודש</option>
                       {['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'].map((mn,i) => <option key={i+1} value={String(i+1).padStart(2,'0')}>{mn}</option>)}
                     </select>
-                    <select value={birthInput.split('-')[0] || ''} onChange={e => {
-                      const parts = birthInput.split('-');
-                      setBirthInput(e.target.value + '-' + (parts[1]||'01') + '-' + (parts[2]||'01'));
-                    }} style={{ flex:2, border:'1.5px solid #d8e0f0', borderRadius:8, padding:'0.6rem 0.4rem', fontFamily:"'Heebo',sans-serif", fontSize:'0.95rem', color:'#1a2340' }}>
+                    <select aria-label="שנת לידה" value={bY || ''} onChange={e => setBirthPart(0, e.target.value)} style={{ ...sel, flex:2 }}>
                       <option value="">שנה</option>
                       {Array.from({length:90},(_,i)=>new Date().getFullYear()-10-i).map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                   </div>
-                </div>
+                </fieldset>
               </div>
-              {computedDate && (
-                <div style={{ fontSize:'0.85rem', color:'#3a4f7a', marginBottom:'1.2rem', background:'#f7f9ff', borderRadius:8, padding:'0.6rem' }}>
-                  תאריך יעד מחושב: <strong>{hebrewDate}</strong>
+              {bdayResult && !ageError && (
+                <div aria-live="polite" style={{ fontSize:'0.85rem', color:'#3a4f7a', marginBottom:'1.2rem', background:'#f7f9ff', borderRadius:8, padding:'0.6rem' }}>
+                  תאריך יעד מחושב: <strong>{bdayResult.hebrew}</strong>
                 </div>
               )}
-              <button onClick={async () => {
-                if (!ageInput || !birthInput) return;
-                const birthDateObjSave = parseLocalDate(birthInput);
-                const bdaySave = hebrewBirthdayAtAge(birthDateObjSave, ageInput);
-                const d = bdaySave ? bdaySave.gregorian : new Date(birthDateObjSave.getFullYear() + Number(ageInput), birthDateObjSave.getMonth(), birthDateObjSave.getDate());
-                const obj = { age: Number(ageInput), birth: birthInput, date: d.toISOString(), hebrewLabel: bdaySave ? bdaySave.hebrew : null };
-                const val = JSON.stringify(obj);
-                setTargetDate(val); setTargetInput(val);
-                await fbSave(user.uid, 'shas-target', val);
+              <button disabled={!canSave} onClick={() => {
+                const b = parseLocalDate(birthInput);
+                const r = hebrewBirthdayAtAge(b, ageNum);
+                const d = r ? r.gregorian : new Date(b.getFullYear() + ageNum, b.getMonth(), b.getDate());
+                saveTarget({ age: ageNum, birth: birthInput, date: d.toISOString(), hebrewLabel: r ? r.hebrew : null });
                 setTab('shas');
-              }} style={{ background:'#2a40a0', color:'#fff', border:'none', borderRadius:8, padding:'0.7rem 2rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'0.95rem', cursor:'pointer', width:'100%', marginBottom:'0.8rem' }}>
+              }} style={{ background: canSave ? '#2a40a0' : '#9aa6c4', color:'#fff', border:'none', borderRadius:8, padding:'0.7rem 2rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'0.95rem', cursor: canSave ? 'pointer' : 'not-allowed', width:'100%', marginBottom:'0.8rem' }}>
                 {targetObj ? 'עדכן יעד' : 'הגדר יעד'}
               </button>
               {targetObj && (
-                <button onClick={async () => {
-                  setTargetDate(null); setTargetInput(''); setAgeInput(''); setBirthInput('');
-                  await fbSave(user.uid, 'shas-target', '');
-                }} style={{ background:'none', border:'none', color:'#aab4cc', fontSize:'0.72rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>
+                <button onClick={() => { if (confirm('להסיר את היעד?')) saveTarget(null); }} style={{ background:'none', border:'none', color:'#5f6e8e', fontSize:'0.78rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif", textDecoration:'underline', padding:'0.3rem' }}>
                   הסר יעד
                 </button>
               )}
@@ -1584,21 +1789,21 @@ function App() {
         {tab === 'journal' && (
           <div style={{ maxWidth:660, margin:'0 auto' }}>
             <div style={{ marginBottom:'1.2rem' }}>
-              <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.15rem', fontWeight:700, color:'#2e4080', marginBottom:'0.2rem' }}>יומן למידה</div>
-              <div style={{ fontSize:'0.8rem', color:'#7a8aaa' }}>רשום היכן הגעת, מה חידשת, מה רצית לזכור</div>
+              <h2 style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.15rem', fontWeight:700, color:'#2e4080', marginBottom:'0.2rem' }}>יומן למידה</h2>
+              <div style={{ fontSize:'0.8rem', color:'#5f6e8e' }}>רשום היכן הגעת, מה חידשת, מה רצית לזכור</div>
             </div>
             <div style={{ background:'#fff', border:'1.5px solid #d8e0f0', borderRadius:12, padding:'1rem', marginBottom:'1.2rem', boxShadow:'0 2px 8px rgba(30,45,90,0.06)' }}>
-              <textarea value={newEntry} onChange={e => setNewEntry(e.target.value)}
+              <textarea value={newEntry} onChange={e => setNewEntry(e.target.value)} aria-label="רשומה חדשה ביומן"
                 placeholder={"הגעתי עד...\nחידוש שראיתי...\nרעיון שרציתי לזכור..."}
                 style={{ width:'100%', minHeight:85, background:'#f2f5fc', border:'1.5px solid #d8e0f0', borderRadius:8, color:'#1a2340', fontFamily:"'Heebo',sans-serif", fontSize:'0.9rem', padding:'0.75rem', resize:'vertical', direction:'rtl', lineHeight:1.65 }}
               />
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:'0.6rem' }}>
-                <span style={{ fontSize:'0.7rem', color:'#7a8aaa' }}>היום: {today()}</span>
+                <span style={{ fontSize:'0.7rem', color:'#5f6e8e' }}>היום: {today()}</span>
                 <button onClick={addEntry} style={{ background:'#2a40a0', color:'#fff', border:'none', borderRadius:8, padding:'0.48rem 1.1rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'0.85rem', cursor:'pointer' }}>+ הוסף</button>
               </div>
             </div>
             {journal.length === 0 && (
-              <div style={{ textAlign:'center', color:'#7a8aaa', padding:'2.5rem', fontSize:'0.88rem' }}>
+              <div style={{ textAlign:'center', color:'#5f6e8e', padding:'2.5rem', fontSize:'0.88rem' }}>
                 <div style={{ marginBottom:'0.5rem', color:'#aab8d8' }}><Ic d={ICONS.pen} size={34} /></div>
                 עדיין אין רשומות · התחל לכתוב!
               </div>
@@ -1608,7 +1813,7 @@ function App() {
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'0.45rem' }}>
                   <div style={{ display:'flex', alignItems:'center', gap:'0.55rem' }}>
                     <span style={{ background:'#eef1ff', color:'#2e4080', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'0.78rem', padding:'0.08rem 0.4rem', borderRadius:6 }}>{idx+1}</span>
-                    <span style={{ fontSize:'0.7rem', color:'#7a8aaa' }}>{entry.date}</span>
+                    <span style={{ fontSize:'0.7rem', color:'#5f6e8e' }}>{entry.date}</span>
                   </div>
                   <div className="entry-actions">
                     <button className="entry-btn" aria-label="ערוך רשומה" title="ערוך" onClick={() => { setEditingId(entry.id); setEditText(entry.text); }}>✏️</button>
@@ -1617,7 +1822,7 @@ function App() {
                 </div>
                 {editingId === entry.id ? (
                   <div>
-                    <textarea value={editText} onChange={e => setEditText(e.target.value)}
+                    <textarea value={editText} onChange={e => setEditText(e.target.value)} aria-label="עריכת רשומה" autoFocus
                       style={{ width:'100%', minHeight:75, background:'#f2f5fc', border:'1.5px solid #d8e0f0', borderRadius:8, color:'#1a2340', fontFamily:"'Heebo',sans-serif", fontSize:'0.88rem', padding:'0.65rem', resize:'vertical', direction:'rtl' }} />
                     <div style={{ display:'flex', gap:'0.5rem', marginTop:'0.5rem', justifyContent:'flex-end' }}>
                       <button onClick={() => setEditingId(null)} style={{ background:'#eef1ff', border:'1px solid #d8e0f0', color:'#3a4f7a', padding:'0.32rem 0.75rem', borderRadius:7, cursor:'pointer', fontSize:'0.8rem', fontFamily:"'Heebo',sans-serif" }}>ביטול</button>
@@ -1632,18 +1837,20 @@ function App() {
           </div>
         )}
       </div>
-      <div style={{ textAlign:"right", padding:"0.5rem 1.5rem", fontSize:"0.65rem", color:"#aab4cc", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"0.3rem" }}>
+      <footer style={{ textAlign:"right", padding:"0.5rem 1.5rem calc(0.8rem + env(safe-area-inset-bottom))", fontSize:"0.72rem", color:"#5f6e8e", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:"0.3rem" }}>
         <span style={{ display:"inline-flex", alignItems:"center", gap:"0.6rem", flexWrap:"wrap" }}>
           נוצר ע"י עמיחי צדוק
-          <a href={'mailto:amichai85@gmail.com?subject=' + encodeURIComponent('משוב על מעקב הש״ס')} style={{ display:"inline-flex", alignItems:"center", gap:"0.3rem", color:"#5a70aa", textDecoration:"none", background:"#eef2f9", borderRadius:99, padding:"0.18rem 0.6rem", fontWeight:600 }}>
+          <a href={'mailto:amichai85@gmail.com?subject=' + encodeURIComponent('משוב על מעקב הש״ס')} style={{ display:"inline-flex", alignItems:"center", gap:"0.3rem", color:"#3d5499", textDecoration:"none", background:"#eef2f9", borderRadius:99, padding:"0.18rem 0.6rem", fontWeight:600 }}>
             <Ic d={ICONS.mail} size={11} /> צור קשר
           </a>
-          <span style={{ color:"#8a97b5" }}>· קישורי החברותא באדיבות <a href="https://daf-yomi.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0f766e", textDecoration:"none", fontWeight:600 }}>פורטל הדף היומי</a></span>
-          <a href="privacy.html" style={{ color:"#8a97b5" }}>מדיניות פרטיות</a>
+          <span>· קישורי החברותא באדיבות <a href="https://daf-yomi.com" target="_blank" rel="noopener noreferrer" style={{ color:"#0f766e", textDecoration:"none", fontWeight:600 }}>פורטל הדף היומי</a></span>
+          <a href="privacy.html" style={{ color:"#5f6e8e" }}>מדיניות פרטיות</a>
+          <button onClick={deleteAccount} style={{ background:"none", border:"none", color:"#8b2020", font:"inherit", cursor:"pointer", textDecoration:"underline", padding:0 }}>מחיקת חשבון</button>
         </span>
-        <span dir="ltr">{APP_VERSION} · {user?.email || ''} · {(user?.uid || '').slice(0,6)} · {totalLearned}</span>
-      </div>
+        <span dir="ltr">{APP_VERSION}</span>
+      </footer>
     </div>
+    </>
   );
 }
 
@@ -1652,14 +1859,14 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/shas-tracker/sw.js', { scope: '/shas-tracker/' })
-        .then(reg => reg.update());
-      // כשגרסה חדשה משתלטת — רענון אוטומטי (פעם אחת, בלי לולאה)
-      let refreshed = false;
+      // בביקור הראשון אין עדיין SW — השתלטות שלו היא לא "גרסה חדשה" ולא צריך לרענן
+      const hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.register('sw.js').then(reg => reg.update()).catch(e => console.warn('SW', e));
+      // גרסה חדשה השתלטה — לא מרעננים באמצע עבודה (טיוטה ביומן וכו׳), אלא מציעים לרענן
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshed) return;
-        refreshed = true;
-        window.location.reload();
+        if (!hadController || window._swUpdated) return;
+        window._swUpdated = true;
+        window.dispatchEvent(new Event('shas-update'));
       });
     });
   }

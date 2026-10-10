@@ -1647,10 +1647,9 @@ function App() {
                             {READER_TRACTATES[t.name] && (() => { const bm = readerMarks[t.name]; const at = bm && (bm.stop || bm.last); return (
                               <button onClick={e => { e.stopPropagation(); openReader(t.name); }} title={'עיון במסכת ' + t.name + ' עם ביאור שטיינזלץ'}
                                 style={{ fontSize:'0.72rem', color:'#fff', background:'#2a40a0', border:'none', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                                📖 {at ? 'המשך · ' + unitLabel(t.name, at.split(':')[0]).replace('דף ', '') : 'עיון'}
+                                📖 {at ? 'שטיינזלץ · ' + unitLabel(t.name, at.split(':')[0]).replace('דף ', '') : 'שטיינזלץ'}
                               </button>); })()}
                             {TRACTATE_LINKS[t.name] && (<>
-                              <a href={'https://www.sefaria.org.il/Steinsaltz_on_' + TRACTATE_LINKS[t.name].sefaria + '?lang=he'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>שטיינ׳</a>
                               {TRACTATE_LINKS[t.name].chavruta && <a href={'https://daf-yomi.com/BookFiles.aspx?type=1&id=' + TRACTATE_LINKS[t.name].chavruta} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="חברותא מבואר · באדיבות פורטל הדף היומי" style={{ fontSize:'0.72rem', textDecoration:'none', color:'#0f766e', background:'#e3f4f1', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>חברותא</a>}
                               <a href={'https://hebrewbooks.org/shas.aspx?mesechta=' + TRACTATE_LINKS[t.name].hb + '&daf=' + firstDaf(t) + '&format=pdf'} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:'0.72rem', textDecoration:'none', color:'#3d5499', background:'#eef2f9', borderRadius:99, padding:'0.24rem 0.62rem', fontFamily:"'Heebo',sans-serif", fontWeight:600 }}>דף</a>
                               {TRACTATE_LINKS[t.name]?.sinaiMapId && (

@@ -80,12 +80,12 @@ console.log('— main');
   await p.fill('#target-age', '20'); await p.waitForTimeout(100);
   ok(await p.isVisible('#target-age-err'), 'past age rejected');
   ok(await p.isDisabled('text=הגדר יעד'), 'save disabled for invalid');
-  await p.fill('#target-age', '70'); await p.check('input[type=checkbox]'); await p.waitForTimeout(100);
+  await p.fill('#target-age', '70'); await p.waitForTimeout(100);
   const prev = await p.textContent('[aria-live=polite]');
   await axe(p, 'target');
   await p.click('text=הגדר יעד'); await p.waitForTimeout(200);
   w = await p.evaluate(() => window.__writes.filter(x => x['shas-target']).at(-1));
-  ok(w && JSON.parse(w['shas-target']).sunset === true && JSON.parse(w['shas-target']).age === 70, 'target saved with sunset: ' + prev);
+  ok(w && JSON.parse(w['shas-target']).age === 70 && JSON.parse(w['shas-target']).birth === '1990-02-28', 'target saved: ' + prev);
   // reader: nav + back
   await p.click('.thdr-btn >> nth=0').catch(() => {});
   await p.click('text=📖 >> nth=0'); await p.waitForTimeout(500);

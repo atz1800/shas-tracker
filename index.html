@@ -354,14 +354,12 @@ function fmtHebDate(o) {
 function parseLocalDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
 
 // מחשב את יום ההולדת העברי שבו מגיעים לגיל age (שנה עברית של הלידה + age)
-// afterSunset: נולד אחרי השקיעה — התאריך העברי הוא של היום הבא
-function hebrewBirthdayAtAge(birthDate, age, afterSunset) {
+function hebrewBirthdayAtAge(birthDate, age) {
   try {
     const hebcal = window.Hebcal || window.hebcal;
     if (!hebcal) return null;
     const { HDate } = hebcal;
-    let birthHeb = new HDate(birthDate);
-    if (afterSunset) birthHeb = birthHeb.next();
+    const birthHeb = new HDate(birthDate);
     const year = birthHeb.getFullYear() + Number(age);
     let month = birthHeb.getMonth();
     const ADAR_I = 12, ADAR_II = 13;
@@ -913,7 +911,6 @@ function App() {
   const [targetDate, setTargetDate] = useState(null);
   const [ageInput, setAgeInput] = useState('');
   const [birthInput, setBirthInput] = useState('');
-  const [sunsetInput, setSunsetInput] = useState(false);
   const [toastMsg, setToastMsg] = useState(null);
   const [updateReady, setUpdateReady] = useState(!!window._swUpdated);
 
@@ -990,7 +987,7 @@ function App() {
     try {
       const o = JSON.parse(raw);
       if (o && o.birth && o.birth.length === 10 && o.age) {
-        const b = hebrewBirthdayAtAge(parseLocalDate(o.birth), o.age, o.sunset);
+        const b = hebrewBirthdayAtAge(parseLocalDate(o.birth), o.age);
         if (b) return JSON.stringify({ ...o, date: b.gregorian.toISOString(), hebrewLabel: b.hebrew });
       }
     } catch(e) {}
@@ -1003,8 +1000,7 @@ function App() {
       setAgeInput(o.age != null ? String(o.age) : '');
       const b = o.birth || '';
       setBirthInput(b.length === 7 ? b + '-01' : b);
-      setSunsetInput(!!o.sunset);
-    } else if (!raw) { setAgeInput(''); setBirthInput(''); setSunsetInput(false); }
+    } else if (!raw) { setAgeInput(''); setBirthInput(''); }
   }
 
   useEffect(() => {
@@ -1710,7 +1706,7 @@ function App() {
           const birthDateObj = birthOk ? parseLocalDate(birthInput) : null;
           const ageNum = Number(ageInput);
           const nowAge = birthDateObj ? (Date.now() - birthDateObj) / (365.2425 * 864e5) : null;
-          const bdayResult = (birthDateObj && ageInput && Number.isInteger(ageNum)) ? hebrewBirthdayAtAge(birthDateObj, ageNum, sunsetInput) : null;
+          const bdayResult = (birthDateObj && ageInput && Number.isInteger(ageNum)) ? hebrewBirthdayAtAge(birthDateObj, ageNum) : null;
           const ageError = !ageInput ? null
             : !Number.isInteger(ageNum) || ageNum < 1 ? 'יש להזין גיל במספר שלם'
             : ageNum > 120 ? 'גיל היעד צריך להיות עד 120'
@@ -1764,10 +1760,6 @@ function App() {
                       {Array.from({length:90},(_,i)=>new Date().getFullYear()-10-i).map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                   </div>
-                  <label style={{ display:'flex', alignItems:'center', gap:'0.45rem', fontSize:'0.8rem', color:'#3a4f7a', marginTop:'0.6rem', cursor:'pointer' }}>
-                    <input type="checkbox" checked={sunsetInput} onChange={e => setSunsetInput(e.target.checked)} />
-                    נולדתי אחרי השקיעה (התאריך העברי הוא של היום הבא)
-                  </label>
                 </fieldset>
               </div>
               {bdayResult && !ageError && (
@@ -1777,9 +1769,9 @@ function App() {
               )}
               <button disabled={!canSave} onClick={() => {
                 const b = parseLocalDate(birthInput);
-                const r = hebrewBirthdayAtAge(b, ageNum, sunsetInput);
+                const r = hebrewBirthdayAtAge(b, ageNum);
                 const d = r ? r.gregorian : new Date(b.getFullYear() + ageNum, b.getMonth(), b.getDate());
-                saveTarget({ age: ageNum, birth: birthInput, ...(sunsetInput ? { sunset: true } : {}), date: d.toISOString(), hebrewLabel: r ? r.hebrew : null });
+                saveTarget({ age: ageNum, birth: birthInput, date: d.toISOString(), hebrewLabel: r ? r.hebrew : null });
                 setTab('shas');
               }} style={{ background: canSave ? '#2a40a0' : '#9aa6c4', color:'#fff', border:'none', borderRadius:8, padding:'0.7rem 2rem', fontFamily:"'Heebo',sans-serif", fontWeight:700, fontSize:'0.95rem', cursor: canSave ? 'pointer' : 'not-allowed', width:'100%', marginBottom:'0.8rem' }}>
                 {targetObj ? 'עדכן יעד' : 'הגדר יעד'}

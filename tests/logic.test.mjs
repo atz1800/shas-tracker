@@ -45,13 +45,11 @@ test('daf yomi matches @hebcal/learning for a full cycle and beyond', () => {
     assert.equal(list[i % list.length].daf, ref.getBlatt(), 'day ' + i);
   }
 });
-test('hebrew birthday at age: Adar rules and born-after-sunset', () => {
+test('hebrew birthday at age: Adar rules', () => {
   // ז׳ אדר א׳ תשמ״ד (שנה מעוברת) → בשנה פשוטה: אדר
   assert.equal(X.hebrewBirthdayAtAge(new Date(1984, 1, 10), 50).hebrew, 'ז׳ אדר תשצ״ד');
   // י״ב אדר תשמ״ה (פשוטה) → בשנה מעוברת: אדר ב׳
   assert.equal(X.hebrewBirthdayAtAge(new Date(1985, 2, 5), 50).hebrew, 'י״ב אדר ב׳ תשצ״ה');
-  // נולד אחרי השקיעה — היום העברי הבא
-  assert.equal(X.hebrewBirthdayAtAge(new Date(1985, 2, 5), 50, true).hebrew, 'י״ג אדר ב׳ תשצ״ה');
 });
 test('migrateKeys moves old Tamid 2–10 keys to 25–33', () => {
   const out = X.migrateKeys({ 'תמיד||2||א': true, 'תמיד||10||ב': 3, 'ברכות||2||א': true });

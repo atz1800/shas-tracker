@@ -410,6 +410,11 @@ const READER_ENDS_A = SHAS.flatMap(s => s.tractates).filter(t => t.endA).map(t =
 const READER_STARTS_B = ['תמיד']; // תמיד מתחילה בכ״ה ע״ב
 const READER_TRACTATES = Object.fromEntries(Object.entries(TRACTATE_LINKS)
   .map(([name, l]) => [name, { book: l.sefaria, chapters: READER_CHAPTERS[name] || null, perek: !!l.noDaf }]));
+// כפתור ״המשנה״ במסך העיון — בשלב ניסיון, רק בפסחים
+const MISHNA_PILOT = ['פסחים'];
+const plainSeg = h => stripNiqqud(h || '').replace(/&nbsp;/g, ' ').trim();
+const isMishnaStart = h => /^מתני/.test(plainSeg(h));
+const isGemaraStart = h => /^גמ['׳]/.test(plainSeg(h));
 const READER_CACHE = 'shas-texts-v1'; // נשמר גם ב-sw.js — טקסט שנפתח פעם אחת זמין אופליין
 const SEFARIA = 'https://www.sefaria.org/api/';
 
@@ -546,7 +551,14 @@ function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmu
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
   const [stOpen, setStOpen] = useState(true);
-  const [nav, setNav] = useState(false);
+  // חלון פתוח מעל הטקסט: 'nav' (דפים) / 'mishna' (המשנה) / null
+  const [overlay, setOverlay] = useState(null);
+  const nav = overlay === 'nav';
+  // תצוגה: 'both' — גמרא למעלה וביאור למטה; 'st' — ביאור שטיינזלץ בלבד, על כל המסך
+  const [view, setView] = useState(() => { try { return localStorage.getItem('reader-view') === 'st' ? 'st' : 'both'; } catch(e) { return 'both'; } });
+  const stOnly = view === 'st';
+  const [mishna, setMishna] = useState(null); // { status: 'loading'|'ok'|'none'|'error', segs: [{ key, gem, st }] }
+  const hasMishnaBtn = MISHNA_PILOT.includes(tractate) && !cfg.perek;
   const [font, setFont] = useState(() => { try { return +localStorage.getItem('reader-font') || 1.3; } catch(e) { return 1.3; } });
   const topRef = useRef(null), botRef = useRef(null), navRef = useRef(null);
   const segEls = useRef({}), stEls = useRef({});
@@ -557,11 +569,11 @@ function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmu
   const startKey = start || (bookmark && (bookmark.stop || bookmark.last)) || null; // start: פתיחה במקום מסוים (דף יומי)
 
   // חזרה (כפתור אחורה באנדרואיד / Esc) סוגרת קודם את חלון הניווט ואז את המסך; גלילת הדף שמאחור נעולה
-  const navOpenRef = useRef(false);
+  const overlayRef = useRef(null);
   const closeBtnRef = useRef(null);
   useEffect(() => {
     history.pushState({ reader: 1 }, '');
-    const onPop = () => { if (navOpenRef.current) { navOpenRef.current = false; setNav(false); } else onClose(); };
+    const onPop = () => { if (overlayRef.current) { overlayRef.current = null; setOverlay(null); } else onClose(); };
     const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); history.back(); } };
     window.addEventListener('popstate', onPop);
     window.addEventListener('keydown', onKey);
@@ -575,12 +587,14 @@ function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmu
       if (prevFocus && prevFocus.focus) try { prevFocus.focus(); } catch(e) {}
     };
   }, []);
-  function openNav() { if (navOpenRef.current) return; navOpenRef.current = true; history.pushState({ readerNav: 1 }, ''); setNav(true); }
-  function closeNav() { if (navOpenRef.current) history.back(); } // popstate סוגר את החלון
-  const toggleNav = () => navOpenRef.current ? closeNav() : openNav();
-  const close = () => { const n = navOpenRef.current ? 2 : 1; navOpenRef.current = false; history.go(-n); };
+  // חלון אחד בכל פעם; פתיחה מוסיפה רשומה להיסטוריה כדי ש״אחורה״ יסגור קודם אותו
+  function openOverlay(o) { if (!overlayRef.current) history.pushState({ readerOverlay: 1 }, ''); overlayRef.current = o; setOverlay(o); }
+  function closeNav() { if (overlayRef.current) history.back(); } // popstate סוגר את החלון
+  const toggleNav = () => overlayRef.current === 'nav' ? closeNav() : openOverlay('nav');
+  const close = () => { const n = overlayRef.current ? 2 : 1; overlayRef.current = null; history.go(-n); };
 
   useEffect(() => { try { localStorage.setItem('reader-font', String(font)); } catch(e) {} }, [font]);
+  useEffect(() => { try { localStorage.setItem('reader-view', view); } catch(e) {} }, [view]);
 
   async function fetchAmud(a) {
     if (textsRef.current[a]) return textsRef.current[a];
@@ -696,6 +710,58 @@ function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmu
     }
   }, [shown]);
 
+  // החלפת תצוגה — נשארים באותו קטע
+  const firstView = useRef(true);
+  useEffect(() => {
+    if (firstView.current) { firstView.current = false; return; }
+    if (active) requestAnimationFrame(() => { scrollTopTo(active); if (!stOnly) scrollBotTo(active, false); });
+  }, [view]);
+
+  // המשנה שעליה עומדת הגמרא במקום הנוכחי: הולכים אחורה עד הקטע שמתחיל ב״מתני׳״ (עד תחילת המסכת),
+  // ואוספים את קטעי המשנה עד ״גמ׳״. העמודים נטענים בקבוצות של 4 (ונשמרים במטמון)
+  async function findMishna(key) {
+    const [a0, k0] = key.split(':');
+    let i = seq.indexOf(a0);
+    while (i >= 0) {
+      const batch = seq.slice(Math.max(0, i - 3), i + 1);
+      const ts = await Promise.all(batch.map(fetchAmud));
+      for (let b = batch.length - 1; b >= 0; b--) {
+        const t = ts[b], first = batch[b] === a0;
+        for (let k = first ? Math.min(+k0 || 1, t.gem.length) : t.gem.length; k >= 1; k--) {
+          if (isMishnaStart(t.gem[k - 1])) return collectMishna(seq.indexOf(batch[b]), k);
+        }
+      }
+      i -= batch.length;
+    }
+    return null;
+  }
+  async function collectMishna(i, k) {
+    const out = [];
+    while (i < seq.length && out.length < 12) {
+      const t = await fetchAmud(seq[i]);
+      if (k > t.gem.length) { i++; k = 1; if (out.length && i - seq.indexOf(out[0].key.split(':')[0]) > 2) break; continue; }
+      const g = t.gem[k - 1];
+      if (out.length && (isGemaraStart(g) || isMishnaStart(g))) break;
+      out.push({ key: seq[i] + ':' + k, gem: g, st: t.st[k - 1] || '' });
+      k++;
+    }
+    return out;
+  }
+  function openMishna() {
+    if (overlayRef.current === 'mishna') { closeNav(); return; }
+    if (!active && !shown.length) return;
+    openOverlay('mishna');
+    loadMishna();
+  }
+  async function loadMishna() {
+    const key = active || shown[0] + ':1';
+    setMishna({ status: 'loading' });
+    try {
+      const segs = await findMishna(key);
+      setMishna(segs && segs.length ? { status: 'ok', segs } : { status: 'none' });
+    } catch(e) { setMishna({ status: 'error' }); }
+  }
+
   // פתיחה מחדש של חלון הביאור — מיד אל הקטע הפעיל
   useEffect(() => { if (stOpen && active) requestAnimationFrame(() => scrollBotTo(active, false)); }, [stOpen]);
   // חלון הניווט נפתח על הפרק הנוכחי
@@ -768,7 +834,9 @@ function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmu
           <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'1.05rem', lineHeight:1.2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{tractate}{chap ? ' · ' + (chap.name || 'פרק ' + hebNum(chap.n)) : ''}</div>
           <div style={{ fontSize:'0.74rem', color:'#e8c040', fontWeight:600 }}>{activeAmud ? label(activeAmud) : ''} <span style={{ color:'#b8ceff' }}>{nav ? '▲' : '▼'}</span></div>
         </button>
-        <button onClick={toggleNav} aria-expanded={nav} aria-label="ניווט לפרק או דף" style={{ ...btn, background: nav ? '#e8f0ff' : btn.background, color: nav ? '#1a2d6e' : btn.color, fontWeight:700 }}>☰ דפים</button>
+        <button onClick={toggleNav} aria-expanded={nav} aria-label="ניווט לפרק או דף" style={{ ...btn, background: nav ? '#e8f0ff' : btn.background, color: nav ? '#1a2d6e' : btn.color, fontWeight:700, fontSize:'1rem', padding:'0.2rem 0.6rem' }} title="דפים ופרקים">☰</button>
+        {hasMishnaBtn && <button onClick={openMishna} aria-expanded={overlay === 'mishna'} aria-label="הצג את המשנה שעליה עומדת הגמרא כאן" title="המשנה"
+          style={{ ...btn, background: overlay === 'mishna' ? '#e8f0ff' : btn.background, color: overlay === 'mishna' ? '#1a2d6e' : btn.color, fontWeight:700 }}>📜 משנה</button>}
         <button onClick={() => active && onStop(isStop ? null : active)} disabled={!active}
           title={isStop ? 'הסר סימנייה' : 'סמן: כאן עצרתי'} aria-label={isStop ? 'הסר סימנייה' : 'סמן סימנייה: כאן עצרתי'}
           style={{ ...btn, background: isStop ? '#e8c040' : btn.background, color: isStop ? '#1a2340' : btn.color, fontWeight:700 }}>
@@ -781,6 +849,30 @@ function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmu
       </div>}
 
       <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column', position:'relative' }}>
+      {/* המשנה */}
+      {overlay === 'mishna' && <div role="region" aria-label="המשנה" style={{ position:'absolute', inset:0, zIndex:3, background:'#fffdf6', overflowY:'auto', padding:'0.9rem 1rem 2rem' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:'0.5rem', marginBottom:'0.8rem' }}>
+          <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontWeight:900, fontSize:'1.2rem', color:'#8a6000' }}>📜 המשנה</div>
+          {mishna && mishna.status === 'ok' && <div style={{ fontSize:'0.78rem', color:'#5f6e8e' }}>{amudLabel(mishna.segs[0].key.split(':')[0])}</div>}
+          <button onClick={closeNav} aria-label="סגור את המשנה" style={{ marginRight:'auto', background:'#fff', border:'1px solid #e8dcb0', borderRadius:8, padding:'0.25rem 0.7rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif", fontSize:'0.8rem', color:'#3a4f7a' }}>✕ חזרה לגמרא</button>
+        </div>
+        {(!mishna || mishna.status === 'loading') && <div style={{ textAlign:'center', color:'#5f6e8e', padding:'2rem 0' }}>מחפש את המשנה...</div>}
+        {mishna && mishna.status === 'none' && <div style={{ textAlign:'center', color:'#5f6e8e', padding:'2rem 0' }}>לא נמצאה משנה לפני המקום הזה.</div>}
+        {mishna && mishna.status === 'error' && <div style={{ textAlign:'center', color:'#92400e', padding:'2rem 0' }}>טעינת המשנה נכשלה. <button onClick={loadMishna} style={{ background:'none', border:'none', color:'inherit', font:'inherit', textDecoration:'underline', cursor:'pointer', padding:0 }}>נסה שוב</button></div>}
+        {mishna && mishna.status === 'ok' && <>
+          <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize: font + 'rem', lineHeight:2, textAlign:'justify', color:'#1a2340', background:'#fff', border:'1px solid #efe4bf', borderRadius:10, padding:'0.7rem 0.9rem' }}>
+            {mishna.segs.map(s => <span key={s.key}><span dangerouslySetInnerHTML={{ __html: s.gem }} />{' '}</span>)}
+          </div>
+          {mishna.segs.some(s => s.st) && <>
+            <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'0.95rem', color:'#3a3a3a', margin:'1rem 0 0.4rem' }}>ביאור שטיינזלץ</div>
+            {mishna.segs.filter(s => s.st).map(s => <div key={s.key} style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize: (font * 0.88) + 'rem', lineHeight:1.85, color:'#4a5060', textAlign:'justify', marginBottom:'0.5rem' }} dangerouslySetInnerHTML={{ __html: s.st }} />)}
+          </>}
+          <div style={{ textAlign:'center', marginTop:'1rem' }}>
+            <button onClick={() => jumpTo(mishna.segs[0].key.split(':')[0], +mishna.segs[0].key.split(':')[1])} style={{ background:'#eef2f9', border:'none', borderRadius:99, color:'#3d5499', fontSize:'0.8rem', fontWeight:600, padding:'0.35rem 1rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>עבור למשנה בתוך הגמרא</button>
+          </div>
+        </>}
+      </div>}
+
       {/* ניווט */}
       {nav && <div ref={navRef} style={{ position:'absolute', inset:0, zIndex:3, background:'#f2f5fc', overflowY:'auto', padding:'0.8rem 1rem 2rem' }}>
         <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap', alignItems:'center', marginBottom:'0.9rem' }}>
@@ -812,7 +904,7 @@ function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmu
       </div>}
 
       {/* גמרא */}
-      <div ref={topRef} onScroll={onTopScroll} tabIndex={0} aria-label="טקסט הגמרא" style={{ flex: stOpen ? '1 1 52%' : '1 1 100%', overflowY:'auto', padding:'0.8rem 1rem 40vh', WebkitOverflowScrolling:'touch' }}>
+      <div ref={topRef} onScroll={onTopScroll} tabIndex={0} aria-label={stOnly ? 'ביאור שטיינזלץ' : 'טקסט הגמרא'} style={{ flex: stOpen && !stOnly ? '1 1 52%' : '1 1 100%', background: stOnly ? '#fafaf8' : undefined, overflowY:'auto', padding:'0.8rem 1rem 40vh', WebkitOverflowScrolling:'touch' }}>
         {!shown.length && !err && <div style={{ textAlign:'center', color:'#5f6e8e', padding:'3rem 0' }}>טוען מספריא...</div>}
         {!atStart && <div style={{ textAlign:'center', marginBottom:'0.6rem' }}>
           <button onClick={loadPrev} disabled={busy} style={{ background:'#eef2f9', border:'none', borderRadius:99, color:'#3d5499', fontSize:'0.78rem', fontWeight:600, padding:'0.3rem 0.9rem', cursor:'pointer', fontFamily:"'Heebo',sans-serif" }}>▲ {cfg.perek ? 'פרק קודם' : 'עמוד קודם'}</button>
@@ -820,18 +912,25 @@ function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmu
         {shown.map(a => !texts[a] || !texts[a].gem.length ? null : (
           <div key={a}>
             {!cfg.perek && <div style={{ textAlign:'center', color:'#8a6000', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, fontSize:'0.95rem', margin:'0.4rem 0 0.5rem', letterSpacing:'0.02em' }}>— {amudLabel(a)} —</div>}
-            <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize: font + 'rem', lineHeight:2, textAlign:'justify', color:'#1a2340' }}>
+            <div style={{ fontFamily:"'Frank Ruhl Libre',serif", fontSize: (stOnly ? font * 0.95 : font) + 'rem', lineHeight: stOnly ? 1.9 : 2, textAlign:'justify', color:'#1a2340' }}>
               {segsOf(a).map(k => {
                 const key = a + ':' + k, on = key === active, stop = key === stopKey, ch = chapStartsAt(a, k);
                 return (
                   <React.Fragment key={key}>
                     {ch && chapHeading(ch)}
                     {texts[a].hal && texts[a].hal[k - 1] > 0 && <div style={{ fontFamily:"'Heebo',sans-serif", fontSize:'0.78rem', fontWeight:700, color:'#8a6000', margin:'0.5rem 0 0.1rem' }}>הלכה {hebNum(texts[a].hal[k - 1])}</div>}
-                    <span ref={el => { segEls.current[key] = el; }} onClick={() => activate(key, false)}
+                    {stOnly ? (
+                      // ביאור בלבד: כל קטע כפסקה (מילות הגמרא מודגשות בתוך הביאור); בלי ביאור — הגמרא עצמה
+                      <div ref={el => { segEls.current[key] = el; }} onClick={() => activate(key, false)}
+                        style={{ padding:'0.35rem 0.55rem', margin:'0 -0.55rem 0.15rem', borderRadius:8, borderRight: on ? '3px solid #4a67c8' : '3px solid transparent', background: on ? '#fff' : stop ? '#fff4d6' : 'transparent', cursor:'pointer', transition:'background 0.2s' }}>
+                        {stop && <span aria-label="כאן עצרת" style={{ fontSize:'0.75em' }}>📍</span>}
+                        <span dangerouslySetInnerHTML={{ __html: texts[a].st[k - 1] || texts[a].gem[k - 1] }} />
+                      </div>
+                    ) : <span ref={el => { segEls.current[key] = el; }} onClick={() => activate(key, false)}
                       style={{ background: on ? '#e3edfc' : stop ? '#fff4d6' : 'transparent', borderRadius:4, cursor:'pointer', transition:'background 0.2s', boxDecorationBreak:'clone', WebkitBoxDecorationBreak:'clone' }}>
                       {stop && <span aria-label="כאן עצרת" style={{ fontSize:'0.75em' }}>📍</span>}
                       <span dangerouslySetInnerHTML={{ __html: texts[a].gem[k - 1] }} />{' '}
-                    </span>
+                    </span>}
                   </React.Fragment>
                 );
               })}
@@ -845,14 +944,25 @@ function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmu
         ))}
         {atEnd && shown.length > 0 && <div style={{ textAlign:'center', color:'#8a6000', fontFamily:"'Frank Ruhl Libre',serif", fontWeight:700, padding:'1rem 0' }}>הדרן עלך מסכת {tractate}</div>}
         {busy && shown.length > 0 && <div style={{ textAlign:'center', color:'#5f6e8e', fontSize:'0.8rem' }}>טוען...</div>}
+        {stOnly && shown.length > 0 && <div style={{ fontSize:'0.68rem', color:'#6b6b6b', textAlign:'center', marginTop:'1.5rem', lineHeight:1.6 }}>
+          הטקסט מספריא (Sefaria) · תלמוד מהדורת William Davidson · ביאור הרב עדין שטיינזלץ · CC BY-NC
+        </div>}
       </div>
 
       {/* ביאור שטיינזלץ */}
-      <button onClick={() => setStOpen(o => !o)} aria-expanded={stOpen}
-        style={{ background:'#f1f1ef', border:'none', borderTop:'1px solid #dcdcd6', borderBottom: stOpen ? '1px solid #e6e6e0' : 'none', padding:'0.55rem 1rem', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.02rem', fontWeight:700, color:'#3a3a3a' }}>
-        <span>ביאור שטיינזלץ</span><span style={{ fontSize:'0.8rem', color:'#888' }}>{stOpen ? '▼' : '▲'}</span>
-      </button>
-      {stOpen && <div ref={botRef} tabIndex={0} aria-label="ביאור שטיינזלץ" style={{ flex:'1 1 48%', overflowY:'auto', background:'#fafaf8', padding:'0.6rem 1rem 3rem', position:'relative', WebkitOverflowScrolling:'touch' }}>
+      <div style={{ display:'flex', alignItems:'stretch', background:'#f1f1ef', borderTop:'1px solid #dcdcd6', borderBottom: stOpen && !stOnly ? '1px solid #e6e6e0' : 'none' }}>
+        {stOnly
+          ? <div style={{ flex:1, padding:'0.55rem 1rem', fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.02rem', fontWeight:700, color:'#3a3a3a' }}>ביאור שטיינזלץ · מסך מלא</div>
+          : <button onClick={() => setStOpen(o => !o)} aria-expanded={stOpen}
+              style={{ flex:1, background:'none', border:'none', padding:'0.55rem 1rem', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', fontFamily:"'Frank Ruhl Libre',serif", fontSize:'1.02rem', fontWeight:700, color:'#3a3a3a' }}>
+              <span>ביאור שטיינזלץ</span><span style={{ fontSize:'0.8rem', color:'#6b6b6b' }}>{stOpen ? '▼' : '▲'}</span>
+            </button>}
+        <button onClick={() => setView(stOnly ? 'both' : 'st')} aria-pressed={stOnly}
+          style={{ background: stOnly ? '#2a40a0' : '#fff', color: stOnly ? '#fff' : '#2a40a0', border:'1px solid #c0ccf0', borderRadius:99, margin:'0.35rem 0.6rem', padding:'0.2rem 0.75rem', fontSize:'0.76rem', fontWeight:700, cursor:'pointer', fontFamily:"'Heebo',sans-serif", whiteSpace:'nowrap' }}>
+          {stOnly ? 'גמרא + ביאור' : 'ביאור בלבד'}
+        </button>
+      </div>
+      {stOpen && !stOnly && <div ref={botRef} tabIndex={0} aria-label="ביאור שטיינזלץ" style={{ flex:'1 1 48%', overflowY:'auto', background:'#fafaf8', padding:'0.6rem 1rem 3rem', position:'relative', WebkitOverflowScrolling:'touch' }}>
         {shown.map(a => segsOf(a).map(k => {
           const key = a + ':' + k, html = texts[a].st[k - 1], on = key === active;
           if (!html) return null;

@@ -91,7 +91,7 @@ console.log('— main');
   await p.click('text=📖 >> nth=0'); await p.waitForTimeout(500);
   ok(await p.isVisible('[role=dialog]'), 'reader open');
   ok(await p.evaluate(() => document.activeElement.getAttribute('aria-label')) === 'סגור את מסך העיון', 'focus moved into reader');
-  await p.click('text=☰ דפים'); await p.waitForTimeout(200);
+  await p.click('button[aria-label="ניווט לפרק או דף"]'); await p.waitForTimeout(200);
   await p.goBack(); await p.waitForTimeout(300);
   ok(await p.isVisible('[role=dialog]'), 'back closes nav only');
   await p.keyboard.press('Escape'); await p.waitForTimeout(300);
@@ -157,8 +157,11 @@ await ctx.route(u => !u.href.startsWith('http://localhost'), r => {
   if (u.hostname !== 'www.sefaria.org') return r.abort();
   reqs.push(u.pathname);
   if (u.pathname.includes('/raw/index/')) return r.fulfill({ json: { alt_structs: { Chapters: { nodes: [{ wholeRef: 'Bekhorot 2a:1-13b:3', heTitle: 'פרק ראשון - הלוקח עובר חמורו' }, { wholeRef: 'Bekhorot 13b:4-26b:2', heTitle: 'פרק שני' }] } } }, headers: { 'access-control-allow-origin': '*' } });
-  const m = /texts\/(Steinsaltz_on_)?Bekhorot\.(\d+[ab])/.exec(u.pathname);
-  return r.fulfill({ json: { versions: [{ text: m[1] ? ['ביאור ' + m[2] + ' <sup>1</sup><i class="footnote">הערה</i>', 'ביאור ב'] : ['<b>גמרא</b> ' + m[2] + '<script>window.__xss=1</script><img src=x onerror="window.__xss=1">', 'קטע ב'] }] }, headers: { 'access-control-allow-origin': '*' } });
+  const m = /texts\/(Steinsaltz_on_)?(\w+)\.(\d+[ab])/.exec(u.pathname);
+  const [st, book, am] = [m[1], m[2], m[3]];
+  // פסחים כ״א ע״א: משנה (שני קטעים) ואז גמרא
+  if (book === 'Pesachim' && am === '21a') return r.fulfill({ json: { versions: [{ text: st ? ['ביאור המשנה א', 'ביאור המשנה ב', 'ביאור הגמרא'] : ['<strong>מַתְנִי׳</strong> כׇּל שָׁעָה', 'סוף המשנה', '<strong>גְּמָ׳</strong> לְמֵימְרָא'] }] }, headers: { 'access-control-allow-origin': '*' } });
+  return r.fulfill({ json: { versions: [{ text: st ? ['ביאור ' + am + ' <sup>1</sup><i class="footnote">הערה</i>', 'ביאור ב ' + am] : ['<b>גמרא</b> ' + am + '<script>window.__xss=1</script><img src=x onerror="window.__xss=1">', 'קטע ב ' + am] }] }, headers: { 'access-control-allow-origin': '*' } });
 });
 const p = await ctx.newPage(); const errs = []; p.on('pageerror', e => errs.push(e.message));
 await p.addInitScript(() => { if (!sessionStorage.getItem('i')) { sessionStorage.setItem('i', 1); localStorage.setItem('__stub', JSON.stringify({ data: {} })); } });
@@ -178,6 +181,30 @@ const n = reqs.length;
 await p.keyboard.press('Escape'); await p.waitForTimeout(200);
 await p.click('button[aria-label^="דף יומי"]'); await p.waitForTimeout(800);
 ok(reqs.length === n, 'second open served entirely from cache: ' + (reqs.length - n) + ' new requests');
+ok(!(await p.isVisible('text=📜 משנה')), 'no mishna button outside the pilot (בכורות)');
+await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+// פסחים: המשנה מכ״א ע״א כשקוראים בכ״ב ע״ב
+await p.evaluate(() => { const c = JSON.parse(localStorage.getItem('__stub')); c.data = { 'shas-reader': JSON.stringify({ 'פסחים': { last: '22b:2', updated: 1 } }) }; localStorage.setItem('__stub', JSON.stringify(c)); });
+await p.reload(); await p.waitForTimeout(800);
+await p.click('button[title^="עיון במסכת פסחים"]'); await p.waitForTimeout(800);
+ok((await p.textContent('[aria-label="טקסט הגמרא"]')).includes('22b'), 'pesachim opened at bookmark 22b');
+await p.click('text=📜 משנה'); await p.waitForTimeout(800);
+const mt = await p.textContent('[role=region][aria-label="המשנה"]');
+ok(mt.includes('סוף המשנה') && mt.includes('ביאור המשנה ב') && !mt.includes('לְמֵימְרָא') && mt.includes('כ״א ע״א'), 'mishna found 21a (both segments, no gemara): ' + mt.slice(0, 80));
+if (process.env.SHOTS) await p.screenshot({ path: process.env.SHOTS + '/mishna.png' });
+await p.goBack(); await p.waitForTimeout(300);
+ok(await p.isVisible('[role=dialog]') && !(await p.isVisible('[role=region][aria-label="המשנה"]')), 'back closes mishna only');
+// ביאור בלבד
+await p.click('text=ביאור בלבד'); await p.waitForTimeout(300);
+const top = await p.textContent('[aria-label="ביאור שטיינזלץ"]');
+if (process.env.SHOTS) await p.screenshot({ path: process.env.SHOTS + '/st-only.png' });
+ok(top.includes('ביאור 22b') && !(await p.isVisible('[aria-label="טקסט הגמרא"]')), 'Steinsaltz-only shows explanation full screen');
+ok(await p.isVisible('text=סיימתי את דף כ״ב ע״ב'), 'mark-learned button still there in Steinsaltz-only');
+await p.keyboard.press('Escape'); await p.waitForTimeout(200);
+await p.click('button[title^="עיון במסכת פסחים"]'); await p.waitForTimeout(600);
+ok(await p.isVisible('text=גמרא + ביאור'), 'view choice remembered');
+await p.click('text=גמרא + ביאור'); await p.waitForTimeout(300);
+ok(await p.isVisible('[aria-label="טקסט הגמרא"]'), 'back to Gemara + Steinsaltz');
 ok(!errs.length, 'no page errors ' + errs);
 await ctx.close();
 }

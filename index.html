@@ -85,6 +85,8 @@ body { font-family: 'Heebo', sans-serif; background: #f2f5fc; }
 .amud-cell:focus-visible, .thdr-btn:focus-visible, button:focus-visible, a:focus-visible, select:focus-visible, [role="button"]:focus-visible { outline: 3px solid #2a40a0; outline-offset: 2px; z-index:3; }
 .on-dark :focus-visible { outline-color: #e8d870 !important; }
 .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+/* מסך עיון: <big> מספריא — אות הסעיף של שטיינזלץ (״א משנה״, ״ב גמרא״) ופתיחת משנה/גמרא — כסימון זהוב ולא כאות ענקית */
+[role="dialog"] big { font-size:1em; font-weight:700; color:#8a6000; }
 .thdr-btn { background:none; border:none; padding:0; margin:0; font:inherit; color:inherit; cursor:pointer; text-align:right; display:flex; align-items:center; gap:0.3rem; }
 .safe-top { padding-top: env(safe-area-inset-top); }
 .toast { position:fixed; bottom:calc(1rem + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:1000; max-width:min(92vw, 520px); border-radius:10px; padding:0.65rem 1rem; font-family:'Heebo',sans-serif; font-size:0.85rem; font-weight:600; box-shadow:0 6px 24px rgba(0,0,0,0.25); display:flex; gap:0.7rem; align-items:center; }
@@ -164,6 +166,7 @@ const TRACTATE_BY_NAME = Object.fromEntries(SHAS.flatMap(s => s.tractates).map(t
 
 const TOTAL_AMUDIM = SHAS.reduce((s, sed) => s + sed.tractates.reduce((ss, t) => ss + amudCount(t), 0), 0);
 
+// hb: מספר המסכת בהיברובוקס (shas.aspx?mesechta=) — שם נידה 37, קינים 38, תמיד 39, מידות 40
 const TRACTATE_LINKS = {
   'ברכות':    { hb: 1,  sefaria: 'Berakhot',       ws: 'בבלי_ברכות',      sinaiMapId: 1,  chavruta: 188 },
   'שבת':      { hb: 2,  sefaria: 'Shabbat',         ws: 'בבלי_שבת',        sinaiMapId: 2,  chavruta: 209 },
@@ -201,8 +204,8 @@ const TRACTATE_LINKS = {
   'תמורה':    { hb: 34, sefaria: 'Temurah',          ws: 'בבלי_תמורה',                       chavruta: 204 },
   'כריתות':   { hb: 35, sefaria: 'Keritot',          ws: 'בבלי_כריתות',                      chavruta: 183 },
   'מעילה':    { hb: 36, sefaria: 'Meilah',           ws: 'בבלי_מעילה',                       chavruta: 199 },
-  'תמיד':     { hb: 37, sefaria: 'Tamid',            ws: 'בבלי_תמיד',                        chavruta: 21  },
-  'נידה':     { hb: 38, sefaria: 'Niddah',           ws: 'בבלי_נידה',                        chavruta: 203 },
+  'תמיד':     { hb: 39, sefaria: 'Tamid',            ws: 'בבלי_תמיד',                        chavruta: 21  },
+  'נידה':     { hb: 37, sefaria: 'Niddah',           ws: 'בבלי_נידה',                        chavruta: 203 },
 };
 const SLIDES = {
   'פסחים': 'https://drive.google.com/drive/folders/1bfsBLRmfwi-QQrYMlJXf5NZ6mtW32-uJ?usp=sharing',
@@ -413,7 +416,8 @@ const READER_TRACTATES = Object.fromEntries(Object.entries(TRACTATE_LINKS)
 // כפתור ״המשנה״ במסך העיון — בשלב ניסיון, רק בפסחים
 const MISHNA_PILOT = ['פסחים'];
 const plainSeg = h => stripNiqqud(h || '').replace(/&nbsp;/g, ' ').trim();
-const isMishnaStart = h => /^מתני/.test(plainSeg(h));
+// משנה מתחילה ב״מתני׳״ (עם גרש) — לא ״מתניתין דלא כר׳ פלוני״ שבאמצע הגמרא
+const isMishnaStart = h => /^מתני['׳]/.test(plainSeg(h));
 const isGemaraStart = h => /^גמ['׳]/.test(plainSeg(h));
 const READER_CACHE = 'shas-texts-v1'; // נשמר גם ב-sw.js — טקסט שנפתח פעם אחת זמין אופליין
 const SEFARIA = 'https://www.sefaria.org/api/';

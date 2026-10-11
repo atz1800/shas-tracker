@@ -12,7 +12,7 @@ const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const src = html.match(/<script type="text\/babel">([\s\S]*?)<\/script>/)[1];
 const { code } = await transform(src, { loader: 'jsx' });
 const EXPORTS = ['SHAS', 'TOTAL_AMUDIM', 'TRACTATE_BY_NAME', 'amudList', 'amudCount', 'hasAmud', 'dafYomiList', 'getTodayDafYomi', 'hebrewBirthdayAtAge',
-  'migrateKeys', 'mergeInto', 'mergeJournal', 'mergeStreak', 'amudSeq', 'hebNum', 'cleanChapName', 'calcStreak', 'parseLocalDate', 'READER_ENDS_A'];
+  'migrateKeys', 'mergeInto', 'isMishnaStart', 'isGemaraStart', 'mergeJournal', 'mergeStreak', 'amudSeq', 'hebNum', 'cleanChapName', 'calcStreak', 'parseLocalDate', 'READER_ENDS_A'];
 const ctx = {
   React: { useState: () => [], useEffect() {}, useRef: () => ({}), useMemo: f => f(), createElement() {}, Fragment: 'F', useLayoutEffect() {} },
   ReactDOM: { createRoot: () => ({ render() {} }) },
@@ -73,6 +73,13 @@ test('mergeStreak: later date wins, same day — higher count', () => {
   assert.equal(X.mergeStreak({ date: '2026-10-10', count: 3 }, { date: '2026-10-09', count: 9 }), null);
   assert.deepEqual({ ...X.mergeStreak({ date: '2026-10-09', count: 3 }, { date: '2026-10-10', count: 1 }) }, { date: '2026-10-10', count: 1 });
   assert.deepEqual({ ...X.mergeStreak({ date: '2026-10-10', count: 3 }, { date: '2026-10-10', count: 4 }) }, { date: '2026-10-10', count: 4 });
+});
+test('mishna / gemara markers as in Sefaria (William Davidson)', () => {
+  assert.equal(X.isMishnaStart('מַתְנִי׳ <big><strong>אוֹר לְאַרְבָּעָה עָשָׂר</strong></big> בּוֹדְקִין'), true);
+  assert.equal(X.isMishnaStart('<big><strong>מַתְנִי׳</strong></big> רַבִּי חֲנִינָא'), true);
+  assert.equal(X.isMishnaStart('מַתְנִיתִין דְּלָא כְּרַבִּי יוֹחָנָן בֶּן נוּרִי'), false);
+  assert.equal(X.isGemaraStart('<big><strong>גְּמָ׳</strong></big> מַאי ״אוֹר״'), true);
+  assert.equal(X.isGemaraStart('גְּמָרָא'), false);
 });
 test('amudSeq / hebNum / cleanChapName', () => {
   assert.deepEqual([...X.amudSeq('21b', '23a')], ['21b', '22a', '22b', '23a']);

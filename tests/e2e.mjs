@@ -205,6 +205,15 @@ await p.click('button[title^="עיון במסכת פסחים"]'); await p.waitFo
 ok(await p.isVisible('text=גמרא + ביאור'), 'view choice remembered');
 await p.click('text=גמרא + ביאור'); await p.waitForTimeout(300);
 ok(await p.isVisible('[aria-label="טקסט הגמרא"]'), 'back to Gemara + Steinsaltz');
+// לחיצה על קטע בתחתית החלון העליון — נגלל למעלה אל ״קו הקריאה״, כדי שהקטע הבא יהיה גלוי
+const tap = await p.evaluate(() => { const box = document.querySelector('[aria-label="טקסט הגמרא"]'), br = box.getBoundingClientRect();
+  const segs = [...box.querySelectorAll('span[style*="cursor: pointer"]')].filter(e => { const t = e.getBoundingClientRect().top - br.top; return t > box.clientHeight * 0.5 && t < box.clientHeight - 20; });
+  if (!segs.length) return null; segs[0].setAttribute('data-tap', '1'); return segs[0].getBoundingClientRect().top - br.top; });
+if (tap != null) {
+  await p.click('[data-tap="1"]'); await p.waitForTimeout(1000);
+  const after = await p.evaluate(() => { const box = document.querySelector('[aria-label="טקסט הגמרא"]'); return (document.querySelector('[data-tap="1"]').getBoundingClientRect().top - box.getBoundingClientRect().top) / box.clientHeight; });
+  ok(after > 0.15 && after < 0.3, 'tapping a low segment scrolls it up to the reading line: ' + after.toFixed(2));
+} else ok(false, 'no low segment to tap');
 ok(!errs.length, 'no page errors ' + errs);
 await ctx.close();
 }

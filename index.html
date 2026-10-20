@@ -690,10 +690,20 @@ function Reader({ tractate, bookmark, start, onPos, onStop, learned, onToggleAmu
     const r = el.getBoundingClientRect(), br = box.getBoundingClientRect();
     box.scrollTop += r.top - br.top - box.clientHeight * 0.25;
   }
+  // לחיצה על קטע בגמרא שנמצא מתחת ל״קו הקריאה״ — גוללים אותו בעדינות למעלה, כך שהקטע הבא כבר גלוי ונוח ללחיצה
+  function nudgeTopTo(key) {
+    const box = topRef.current, el = segEls.current[key];
+    if (!box || !el) return;
+    const r = el.getBoundingClientRect(), br = box.getBoundingClientRect();
+    const d = r.top - br.top - box.clientHeight * 0.25 + 2;
+    if (d <= 8) return;
+    quietUntil.current = Date.now() + 900;
+    box.scrollTo({ top: box.scrollTop + d, behavior: 'smooth' });
+  }
   function activate(key, fromBottom) {
     setActive(key);
     onPos(key);
-    if (fromBottom) scrollTopTo(key); else scrollBotTo(key, true);
+    if (fromBottom) scrollTopTo(key); else { scrollBotTo(key, true); nudgeTopTo(key); }
   }
 
   React.useLayoutEffect(() => {
